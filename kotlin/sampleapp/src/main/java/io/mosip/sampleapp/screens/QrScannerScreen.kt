@@ -5,13 +5,30 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.OptIn
-import androidx.camera.core.*
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ExperimentalGetImage
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
-import androidx.compose.material.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.Button
+import androidx.compose.material.MaterialTheme
+import androidx.compose.material.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -22,18 +39,20 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.NavHostController
+import com.google.gson.Gson
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import io.mosip.openID4VP.OpenID4VP
-import io.mosip.openID4VP.authorizationRequest.Verifier
-import io.mosip.openID4VP.authorizationRequest.WalletMetadata
-import io.mosip.sampleapp.HardcodedData
+import io.mosip.sampleapp.OVPHelper
 import io.mosip.sampleapp.data.SharedViewModel
+import io.mosip.sampleapp.getWalletMetadata
+import io.mosip.sampleapp.vc.SampleVcJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalGetImage::class)
@@ -96,33 +115,38 @@ fun CameraPreviewAndScanner(
     var scannedText by remember { mutableStateOf<String?>(null) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var scanningEnabled by remember { mutableStateOf(true) }
-
+    val verifiers = sharedViewModel.verifiers
     LaunchedEffect(scannedText) {
-        scannedText?.let { qr ->
-            sharedViewModel.updateScannedQr(qr)
+        scannedText?.let { urlEncodedAuthRequest ->
+            sharedViewModel.updateScannedQr(urlEncodedAuthRequest)
 
-            val verifiers = Verifier(
-                clientId = "https://injiverify.qa-inji1.mosip.net",
-                responseUris = listOf("https://injiverify.qa-inji1.mosip.net/redirect")
-            )
+
 
             try {
+
                 val authorizationRequest = withContext(Dispatchers.IO) {
                     OpenID4VP("sample-app").authenticateVerifier(
-                        qr,
-                        listOf(verifiers),
-                        walletMetadata = HardcodedData.walletMetadata
+                        urlEncodedAuthorizationRequest = urlEncodedAuthRequest,
+                        sharedViewModel.verifiers,
+                        walletMetadata = getWalletMetadata(sharedViewModel.allProperties),
+                        false
                     )
                 }
+                val gson = Gson()
+                val vcJson = JSONObject(SampleVcJson.MOSIP_VC)
+                val vcJsonList = listOf(vcJson)
+                val authRequestJsonStr = gson.toJson(authorizationRequest)
+                val authRequestJson = JSONObject(authRequestJsonStr)
+                Log.d(":::::::authrequest", "$authRequestJson")
 
-                Log.d("------->", "Authorization Request: $authorizationRequest")
-               // sharedViewModel.setAuthorizationRequest(authorizationRequest) // Store in ViewModel if needed
+
+                val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(vcJsonList, authRequestJson)
+                Log.d("::::::", "matching Vcs: $matchingVcsResult")
+
 
                 delay(100)
 
-                val matches = sharedViewModel.findMatchingCredentials()
-
-                if (matches.isNotEmpty()) {
+                if (matchingVcsResult.matchingVCs.isNotEmpty()) {
                     navController.navigate("scan_result")
                 } else {
                     Log.d("CameraScanner", "No matching credentials found")

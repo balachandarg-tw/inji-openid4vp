@@ -6,10 +6,14 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.gson.Gson
 import com.google.gson.JsonObject
-import io.mosip.sampleapp.data.model.Verifier
+import io.mosip.openID4VP.authorizationRequest.Verifier
+import io.mosip.sampleapp.data.repository.AllPropertiesRepository
 import io.mosip.sampleapp.data.repository.VerifierRepository
 import io.mosip.sampleapp.vc.SampleVcJson
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 class SharedViewModel : ViewModel() {
@@ -18,6 +22,16 @@ class SharedViewModel : ViewModel() {
 
     var scannedQr: String? by mutableStateOf(null)
         private set
+
+    // In SharedViewModel.kt
+    private val _matchingVCs = MutableStateFlow<Map<String, List<Any>>>(emptyMap())
+    val matchingVCs: StateFlow<Map<String, List<Any>>> = _matchingVCs
+
+
+    fun setMatchingVCs(matching: Map<String, List<Any>>) {
+        _matchingVCs.value = matching
+    }
+
 
     val availableCredentials = listOf(
         "Add Mosip" to SampleVcJson.get(0),
@@ -48,28 +62,44 @@ class SharedViewModel : ViewModel() {
         scannedQr = data
     }
 
-    fun findMatchingCredentials(): List<JsonObject> {
-        val qr = scannedQr ?: return emptyList()
-        return items.filter { json ->
-            val typeArray = json["type"]?.asJsonArray
-            val hasMosipType = typeArray?.any { it.asString == "MosipVerifiableCredential" } == true
-            val containsValid = qr.contains("valid", ignoreCase = true)
-            hasMosipType && containsValid
-        }
-    }
-
 
     private val repository = VerifierRepository()
+
+    // Store verifiers as Gson JsonObjects first
+    var verifiersJson by mutableStateOf<List<JsonObject>>(emptyList())
+        private set
+
+    // Store mapped domain model list for easy usage in UI
     var verifiers by mutableStateOf<List<Verifier>>(emptyList())
         private set
 
     fun loadVerifiers() {
         viewModelScope.launch {
-            repository.fetchVerifiers()?.let {
-                verifiers = it
+            repository.fetchVerifiers()?.let { jsonList ->
+                verifiersJson = jsonList
+
+                // Map Gson JsonObject to Verifier data class
+                verifiers = jsonList.map { mapJsonObjectToVerifier(it) }
             }
         }
     }
+
+    private fun mapJsonObjectToVerifier(jsonObject: JsonObject): Verifier {
+        val gson = Gson()
+        return gson.fromJson(jsonObject, Verifier::class.java)
+    }
+
+    val allPropertiesRepository = AllPropertiesRepository()
+    var allProperties by mutableStateOf<JsonObject?>(null)
+        private set
+
+    fun loadAllProperties() {
+        viewModelScope.launch {
+            val result = allPropertiesRepository.fetchAllProperties()
+            allProperties = result
+        }
+    }
+
 }
 
 

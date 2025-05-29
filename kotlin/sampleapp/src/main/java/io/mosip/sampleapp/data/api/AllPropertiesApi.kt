@@ -4,7 +4,7 @@ import com.google.gson.JsonObject
 import retrofit2.Response
 import retrofit2.http.GET
 
-interface VerifierApi {
-    @GET("v1/mimoto/verifiers")
-    suspend fun getVerifiers(): Response<JsonObject>
+interface AllPropertiesApi {
+    @GET("v1/mimoto/allProperties")
+    suspend fun getAllProperties(): Response<JsonObject>
 }

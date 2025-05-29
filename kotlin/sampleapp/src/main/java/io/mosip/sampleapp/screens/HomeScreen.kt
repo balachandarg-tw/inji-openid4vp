@@ -23,6 +23,7 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,8 +34,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonParser
+import io.mosip.sampleapp.OVPHelper
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.data.SharedViewModel
+import io.mosip.sampleapp.vc.SampleVcJson
+import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
@@ -42,22 +48,29 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
     var expandedRowIndex by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(Unit) {
-        viewModel.loadVerifiers()
-    }
+        viewModel.loadAllProperties()
+        delay(1000) // Optional: wait to ensure properties are loaded
 
-    val verifiers = viewModel.verifiers
-
-    // Print the verifiers directly in the UI (for debug purposes)
-    LaunchedEffect(verifiers) {
-        verifiers.forEach { verifier ->
-            Log.d("HomeScreen", "Client ID: ${verifier.clientId}")
-            Log.d("HomeScreen", "Redirect URIs: ${verifier.redirectUris}")
-            Log.d("HomeScreen", "Response URIs: ${verifier.responseUris}")
+        viewModel.allProperties?.let { json ->
+            Log.d(":::::::Full JSON", json.toString()) // Compact
+            // Or pretty-printed
+            val prettyJson = GsonBuilder().setPrettyPrinting().create().toJson(json)
+            Log.d(":::::::Pretty JSON", prettyJson)
         }
     }
+
+
+
     val items = viewModel.items
 
     Box(Modifier.fillMaxSize()) {
+        Button(onClick = {
+            val parsedVc = JsonParser.parseString(SampleVcJson.MOSIP_VC).asJsonObject
+            val resultMap = OVPHelper().buildSelectedVCsMapPlain(listOf(parsedVc))
+            println(":::::::::::"+resultMap) // or pass it to the constructUnsignedVPToken logic
+        }) {
+            Text("Construct")
+        }
         if (items.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("No items found")

@@ -24,6 +24,7 @@ import androidx.compose.material.TextButton
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -41,8 +42,9 @@ import io.mosip.sampleapp.data.SharedViewModel
 
 @Composable
 fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostController) {
-    val matches = sharedViewModel.findMatchingCredentials()
-    val selectedItems = remember { mutableStateListOf<JsonObject>() }
+    val matchingVCs by sharedViewModel.matchingVCs.collectAsState()
+
+    val selectedItems = remember { mutableStateListOf<Pair<String, Any>>() }
 
     var showConsentDialog by remember { mutableStateOf(false) }
     var showDeclineConfirmationDialog by remember { mutableStateOf(false) }
@@ -52,7 +54,7 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Top bar with Close icon
+        // Close Button
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
@@ -65,50 +67,53 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
         Text("Matched Credentials:", style = MaterialTheme.typography.h6)
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Credential list
-        if (matches.isNotEmpty()) {
+        if (matchingVCs.isNotEmpty()) {
             LazyColumn(modifier = Modifier.weight(1f)) {
-                items(matches) { credential ->
-                    val isSelected = selectedItems.contains(credential)
+                matchingVCs.entries.forEach { entry ->
+                    val key = entry.key
+                    val vcList = entry.value
 
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp)
-                            .clickable {
-                                if (isSelected) selectedItems.remove(credential)
-                                else selectedItems.add(credential)
-                            }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(8.dp)
-                        ) {
-                            Checkbox(
-                                checked = isSelected,
-                                onCheckedChange = {
-                                    if (it) selectedItems.add(credential)
-                                    else selectedItems.remove(credential)
+                    items(vcList) { vc ->
+                        val vcItem = key to vc
+                        val isSelected = selectedItems.contains(vcItem)
+
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp)
+                                .clickable {
+                                    if (isSelected) selectedItems.remove(vcItem)
+                                    else selectedItems.add(vcItem)
                                 }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = credential.toString(),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f)
-                            )
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(8.dp)
+                            ) {
+                                Checkbox(
+                                    checked = isSelected,
+                                    onCheckedChange = {
+                                        if (it) selectedItems.add(vcItem)
+                                        else selectedItems.remove(vcItem)
+                                    }
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = vc.toString(),
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
                         }
                     }
                 }
             }
-        } else {
-            Text("No matching credentials found.")
         }
+
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Vertical buttons at bottom
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -126,7 +131,7 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
 
             TextButton(
                 onClick = {
-                    // Handle reject logic if needed
+                    showDeclineConfirmationDialog = true
                 }
             ) {
                 Text("Reject", color = Color.Red)
@@ -182,5 +187,4 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
             }
         )
     }
-
 }

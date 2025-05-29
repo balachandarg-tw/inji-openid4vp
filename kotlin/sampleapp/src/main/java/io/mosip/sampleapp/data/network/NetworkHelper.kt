@@ -1,5 +1,6 @@
 package io.mosip.sampleapp.data.network
 
+import io.mosip.sampleapp.data.api.AllPropertiesApi
 import io.mosip.sampleapp.data.api.VerifierApi
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
@@ -18,5 +19,9 @@ object NetworkHelper {
 
     val verifierApi: VerifierApi by lazy {
         retrofit.create(VerifierApi::class.java)
+    }
+
+    val allPropertiesApi: AllPropertiesApi by lazy {
+        retrofit.create(AllPropertiesApi::class.java)
     }
 }

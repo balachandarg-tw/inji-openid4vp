@@ -1,16 +1,20 @@
 package io.mosip.sampleapp.data.repository
 
-import io.mosip.sampleapp.data.model.Verifier
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import io.mosip.sampleapp.data.network.NetworkHelper
 
 class VerifierRepository {
     private val api = NetworkHelper.verifierApi
 
-    suspend fun fetchVerifiers(): List<Verifier>? {
+    suspend fun fetchVerifiers(): List<JsonObject>? {
         return try {
             val response = api.getVerifiers()
             if (response.isSuccessful) {
-                response.body()?.response?.verifiers
+                val json = response.body()
+                val verifiersJsonArray: JsonArray? = json?.getAsJsonObject("response")?.getAsJsonArray("verifiers")
+
+                verifiersJsonArray?.map { it.asJsonObject }
             } else null
         } catch (e: Exception) {
             null

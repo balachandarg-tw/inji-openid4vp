@@ -90,6 +90,9 @@ dependencies {
     implementation("com.google.accompanist:accompanist-permissions:0.30.1")
     implementation("androidx.concurrent:concurrent-futures:1.1.0")
     implementation("com.google.guava:guava:31.1-android")
+    implementation("com.jayway.jsonpath:json-path:2.9.0")
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0")
+
 
 
 
