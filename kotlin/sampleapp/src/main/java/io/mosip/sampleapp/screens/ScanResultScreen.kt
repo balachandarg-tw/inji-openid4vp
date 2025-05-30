@@ -39,7 +39,6 @@ import androidx.navigation.NavHostController
 import com.google.gson.JsonObject
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.data.SharedViewModel
-import org.json.JSONObject
 
 @Composable
 fun ScanResultScreen(
@@ -47,8 +46,7 @@ fun ScanResultScreen(
     navController: NavHostController
 ) {
     val matchResult by sharedViewModel.matchResult.collectAsState()
-
-    val selectedItems = remember { mutableStateListOf<Pair<String, JSONObject>>() }
+    val selectedItems = remember { mutableStateListOf<Pair<String, JsonObject>>() }
 
     var showConsentDialog by remember { mutableStateOf(false) }
     var showDeclineConfirmationDialog by remember { mutableStateOf(false) }
@@ -63,7 +61,9 @@ fun ScanResultScreen(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
         ) {
-            IconButton(onClick = { navController.popBackStack(Screen.QrScanner.route, inclusive = false) }) {
+            IconButton(onClick = {
+                navController.popBackStack(Screen.QrScanner.route, inclusive = false)
+            }) {
                 Icon(Icons.Default.Close, contentDescription = "Close")
             }
         }
@@ -86,11 +86,10 @@ fun ScanResultScreen(
                         val vcItem = key to vc
                         val isSelected = selectedItems.contains(vcItem)
 
-                        // Extract type label safely
                         val typeLabel = runCatching {
-                            val typeArray = vc.optJSONArray("type")
-                            if (typeArray != null && typeArray.length() > 1) {
-                                typeArray.getString(1)
+                            val typeArray = vc["type"]?.asJsonArray
+                            if (typeArray != null && typeArray.size() > 1) {
+                                typeArray[1].asString
                             } else {
                                 "Unnamed"
                             }
@@ -129,7 +128,6 @@ fun ScanResultScreen(
                             }
                         }
                     }
-
                 }
             }
         } else {
@@ -211,3 +209,4 @@ fun ScanResultScreen(
         )
     }
 }
+

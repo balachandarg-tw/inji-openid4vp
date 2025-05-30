@@ -40,6 +40,9 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.navigation.NavHostController
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -135,15 +138,20 @@ fun CameraPreviewAndScanner(
                     )
                 }
                 val gson = Gson()
-                val vcJson = JSONObject(SampleVcJson.MOSIP_VC)
+                val vcJson = sharedViewModel.items
                 val vcJsonList = listOf(vcJson)
-                val authRequestJsonStr = gson.toJson(authorizationRequest)
-                val authRequestJson = JSONObject(authRequestJsonStr)
+                val authRequestJson: JsonObject = gson.toJsonTree(authorizationRequest).asJsonObject
+
                 Log.d(":::::::authrequest", "$authRequestJson")
 
 
-                val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(vcJsonList, authRequestJson)
+                val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(vcJson, authRequestJson)
                 Log.d("::::::", "matching Vcs: $matchingVcsResult")
+
+                val prettyGson = GsonBuilder().setPrettyPrinting().create()
+                val prettyJson = prettyGson.toJson(matchingVcsResult)
+                Log.d("::::::pretty", "$matchingVcsResult")
+
 
                 dataClassToJsonObject(matchingVcsResult)
 
@@ -152,9 +160,12 @@ fun CameraPreviewAndScanner(
 
                 delay(100)
 
-                if (matchingVcsResult.matchingVCs.isNotEmpty()) {
+                val idCardArray = matchingVcsResult.matchingVCs["id card credential"]
+
+                if (!idCardArray.isNullOrEmpty()) {
                     navController.navigate("scan_result")
-                } else {
+                }
+                else {
                     Log.d("CameraScanner", "No matching credentials found")
                     showErrorDialog = true
                     scanningEnabled = false

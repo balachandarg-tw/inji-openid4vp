@@ -3,35 +3,38 @@ package io.mosip.sampleapp
 import android.util.Log
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.google.gson.JsonArray
+import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.jayway.jsonpath.JsonPath
 import io.mosip.openID4VP.authorizationRequest.WalletMetadata
 import org.json.JSONArray
 import org.json.JSONObject
 
+
 class OVPHelper {
     fun getVcsMatchingAuthRequest(
-        vcJsonList: List<JSONObject>,
-        authRequest: JSONObject
+        vcJsonList: List<JsonObject>,
+        authRequest: JsonObject
     ): MatchResult {
-        val matchingVCs = mutableMapOf<String, MutableList<JSONObject>>()
+        val matchingVCs = mutableMapOf<String, MutableList<JsonObject>>()
         val requestedClaims = mutableSetOf<String>()
-        val presentationDefinition = authRequest.getJSONObject("presentationDefinition")
-        val inputDescriptors = presentationDefinition.getJSONArray("inputDescriptors")
+        val presentationDefinition = authRequest.getAsJsonObject("presentationDefinition")
+        val inputDescriptors = presentationDefinition.getAsJsonArray("inputDescriptors")
         var hasFormatOrConstraints = false
 
         for (vc in vcJsonList) {
-            for (i in 0 until inputDescriptors.length()) {
-                val inputDescriptor = inputDescriptors.getJSONObject(i)
-                val format = inputDescriptor.optJSONObject("format")
-                    ?: presentationDefinition.optJSONObject("format")
-                val constraints = inputDescriptor.optJSONObject("constraints")
+            for (i in 0 until inputDescriptors.size()) {
+                val inputDescriptor = inputDescriptors[i].asJsonObject
+                val format = inputDescriptor.getAsJsonObject("format")
+                    ?: presentationDefinition.getAsJsonObject("format")
+                val constraints = inputDescriptor.getAsJsonObject("constraints")
 
                 hasFormatOrConstraints = hasFormatOrConstraints ||
-                        format != null || constraints?.has("fields") == true
+                        format != null || (constraints?.has("fields") == true)
 
                 val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vc)
-              //  val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
+                // val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
 
                 val shouldInclude = if (constraints?.has("fields") == true && format != null) {
                     matchesFormat
@@ -40,46 +43,43 @@ class OVPHelper {
                 }
 
                 if (shouldInclude) {
-                    val descriptorId = inputDescriptor.getString("id")
+                    val descriptorId = inputDescriptor.get("id").asString
                     matchingVCs.getOrPut(descriptorId) { mutableListOf() }.add(vc)
                 }
             }
         }
 
-        if (!hasFormatOrConstraints && inputDescriptors.length() > 0) {
-            val fallbackId = inputDescriptors.getJSONObject(0).getString("id")
+        if (!hasFormatOrConstraints && inputDescriptors.size() > 0) {
+            val fallbackId = inputDescriptors[0].asJsonObject.get("id").asString
             matchingVCs[fallbackId] = vcJsonList.toMutableList()
         }
 
         return MatchResult(
             matchingVCs,
             requestedClaims.joinToString(","),
-            presentationDefinition.optString("purpose", "")
+            presentationDefinition.get("purpose")?.asString ?: ""
         )
     }
 
-
-    fun areVCFormatAndProofTypeMatchingRequest(format: JSONObject?, vc: JSONObject): Boolean {
+    fun areVCFormatAndProofTypeMatchingRequest(format: JsonObject?, vc: JsonObject): Boolean {
         if (format == null) return false
 
-        val proof = vc.optJSONObject("proof") ?: return false
-        val proofType = proof.optString("type", "")
+        val proof = vc.getAsJsonObject("proof") ?: return false
+        val proofType = proof.get("type")?.asString ?: ""
 
-        return format.keys().asSequence().any { type ->
-            val inner = format.optJSONObject(type)
-            val acceptedProofs = inner?.optJSONArray("proof_type")?.toList<String>() ?: emptyList()
+        return format.entrySet().any { (type, element) ->
+            val inner = element?.asJsonObject
+            val acceptedProofs = inner?.getAsJsonArray("proof_type")?.mapNotNull { it.asString } ?: emptyList()
             type == "ldp_vc" && acceptedProofs.contains(proofType)
         }
     }
 
-
-
     fun isVCMatchingRequestConstraints(
-        constraints: JSONObject?,
-        vc: JSONObject,
+        constraints: JsonObject?,
+        vc: JsonObject,
         requestedClaims: MutableSet<String>
     ): Boolean {
-        val fields = constraints?.optJSONArray("fields") ?: return false
+        val fields = constraints?.getAsJsonArray("fields") ?: return false
         val processedCredential = fetchCredentialBasedOnFormat(vc) ?: return false
 
         fun getJsType(value: Any?): String = when (value) {
@@ -92,29 +92,26 @@ class OVPHelper {
             else -> "object"
         }
 
-        for (i in 0 until fields.length()) {
-            val field = fields.optJSONObject(i) ?: continue
-            val paths = field.optJSONArray("path") ?: continue
-            val filter = field.optJSONObject("filter")
+        for (fieldElem in fields) {
+            val field = fieldElem.asJsonObject
+            val paths = field.getAsJsonArray("path") ?: continue
+            val filter = field.getAsJsonObject("filter")
 
-            val fieldMatched = (0 until paths.length()).any { pathIndex ->
-                val jsonPath = paths.optString(pathIndex)
+            val fieldMatched = paths.any { pathElem ->
+                val jsonPath = pathElem.asString
 
-                // Extract claim name from JSONPath
-                val claimName = jsonPath
-                    .replace(Regex("\\['([^']+)'\\]"), ".$1")
+                val claimName = Regex("\\['([^']+)']").replace(jsonPath, ".$1")
                     .split('.')
                     .lastOrNull { it.isNotEmpty() && it != "$" } ?: ""
                 requestedClaims.add(claimName)
 
                 try {
                     val results = JsonPath.read<Any>(processedCredential.toString(), jsonPath)
-
                     if (results == null || (results is List<*> && results.isEmpty())) return@any false
 
                     if (filter == null) return@any true
 
-                    val expectedType = filter.optString("type")
+                    val expectedType = filter.get("type")?.asString ?: ""
                     results is List<*> && results.any { match -> getJsType(match) == expectedType }
                 } catch (e: Exception) {
                     false
@@ -127,53 +124,49 @@ class OVPHelper {
         return true
     }
 
-    fun fetchCredentialBasedOnFormat(vc: JSONObject): JSONObject? {
-        val format = vc.optString("format")
-        val verifiableCredential = vc.optJSONObject("verifiableCredential") ?: return null
+    fun fetchCredentialBasedOnFormat(vc: JsonObject): JsonObject? {
+        val format = vc.get("format")?.asString
+        val verifiableCredential = vc.getAsJsonObject("verifiableCredential") ?: return null
 
         return when (format) {
-            "ldp_vc" -> verifiableCredential.optJSONObject("credential")
+            "ldp_vc" -> verifiableCredential.getAsJsonObject("credential")
             "mso_mdoc" -> {
-                val processedCredential = verifiableCredential.optJSONObject("processedCredential") ?: return null
+                val processedCredential = verifiableCredential.getAsJsonObject("processedCredential") ?: return null
                 getProcessedDataForMdoc(processedCredential)
             }
             else -> null
         }
     }
 
-    fun getProcessedDataForMdoc(processedCredential: JSONObject): JSONObject {
-        val issuerSigned = processedCredential.optJSONObject("issuerSigned") ?: return JSONObject()
-        val nameSpaces = issuerSigned.optJSONObject("nameSpaces") ?: return JSONObject()
+    fun getProcessedDataForMdoc(processedCredential: JsonObject): JsonObject {
+        val issuerSigned = processedCredential.getAsJsonObject("issuerSigned") ?: return JsonObject()
+        val nameSpaces = issuerSigned.getAsJsonObject("nameSpaces") ?: return JsonObject()
 
-        val processedData = JSONObject()
+        val processedData = JsonObject()
 
-        val nsKeys = nameSpaces.keys()
-        for (nsKey in nsKeys) {
-            val elementsArray = nameSpaces.optJSONArray(nsKey) ?: continue
-            val asObject = JSONObject()
+        for ((nsKey, elementsArrayElem) in nameSpaces.entrySet()) {
+            val elementsArray = elementsArrayElem.asJsonArray ?: continue
+            val asObject = JsonObject()
 
-            for (i in 0 until elementsArray.length()) {
-                val item = elementsArray.optJSONObject(i) ?: continue
-                val id = item.optString("elementIdentifier")
-                val value = item.opt("elementValue")
-                asObject.put(id, value)
+            for (itemElem in elementsArray) {
+                val item = itemElem.asJsonObject
+                val id = item.get("elementIdentifier")?.asString ?: continue
+                val value = item.get("elementValue") ?: continue
+                asObject.add(id, value)
             }
 
-            processedData.put(nsKey, asObject)
+            processedData.add(nsKey, asObject)
         }
 
         return processedData
     }
-
-
-
 
     fun buildSelectedVCsMapPlain(selectedItems: List<JsonObject>): Map<String, Map<String, List<String>>> {
         val rootMap = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
 
         selectedItems.forEach { vc ->
             val inputDescriptorId = vc["input_descriptor_id"]?.asString ?: return@forEach
-            val formatType = "ldp_vc" // You can make this dynamic if needed
+            val formatType = "ldp_vc"
             val vcString = vc.toString()
 
             val formatMap = rootMap.getOrPut(inputDescriptorId) { mutableMapOf() }
@@ -184,10 +177,8 @@ class OVPHelper {
 
         return rootMap
     }
-
-
-
 }
+
 
 fun <T> JSONArray.toList(): List<T> {
     val result = mutableListOf<T>()
@@ -198,12 +189,12 @@ fun <T> JSONArray.toList(): List<T> {
     return result
 }
 
-
 data class MatchResult(
-    val matchingVCs: Map<String, List<JSONObject>>,
+    val matchingVCs: Map<String, List<JsonObject>>,
     val requestedClaims: String,
     val purpose: String
 )
+
 
 
 fun getWalletMetadata(allProperties: JsonObject?): WalletMetadata {
