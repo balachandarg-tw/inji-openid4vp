@@ -34,12 +34,12 @@ class OVPHelper {
                         format != null || (constraints?.has("fields") == true)
 
                 val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vc)
-                // val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
+                 val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
 
                 val shouldInclude = if (constraints?.has("fields") == true && format != null) {
-                    matchesFormat
+                    matchesFormat && matchesConstraints
                 } else {
-                    matchesFormat
+                    matchesFormat || matchesConstraints
                 }
 
                 if (shouldInclude) {
@@ -100,20 +100,35 @@ class OVPHelper {
             val fieldMatched = paths.any { pathElem ->
                 val jsonPath = pathElem.asString
 
+                // Extract claim name for debug/tracking
                 val claimName = Regex("\\['([^']+)']").replace(jsonPath, ".$1")
                     .split('.')
                     .lastOrNull { it.isNotEmpty() && it != "$" } ?: ""
                 requestedClaims.add(claimName)
 
                 try {
-                    val results = JsonPath.read<Any>(processedCredential.toString(), jsonPath)
-                    if (results == null || (results is List<*> && results.isEmpty())) return@any false
+                    val resultList = JsonPath.read<Any>(processedCredential.toString(), jsonPath)
+
+                    val results = if (resultList is List<*>) resultList else listOf(resultList)
+                    if (results.isEmpty()) return@any false
 
                     if (filter == null) return@any true
 
                     val expectedType = filter.get("type")?.asString ?: ""
-                    results is List<*> && results.any { match -> getJsType(match) == expectedType }
+                    val pattern = filter.get("pattern")?.asString
+
+                    results.any { match ->
+                        val jsType = getJsType(match)
+                        if (jsType != expectedType) return@any false
+
+                        if (pattern != null && match is String) {
+                            Regex(pattern).containsMatchIn(match)
+                        } else {
+                            true
+                        }
+                    }
                 } catch (e: Exception) {
+                    println("JsonPath failed for $jsonPath: ${e.message}")
                     false
                 }
             }
@@ -124,12 +139,14 @@ class OVPHelper {
         return true
     }
 
+
+
     fun fetchCredentialBasedOnFormat(vc: JsonObject): JsonObject? {
-        val format = vc.get("format")?.asString
-        val verifiableCredential = vc.getAsJsonObject("verifiableCredential") ?: return null
+        val format = vc.get("format")?.asString ?: "ldp_vc"
+        val verifiableCredential = vc ?: return null
 
         return when (format) {
-            "ldp_vc" -> verifiableCredential.getAsJsonObject("credential")
+            "ldp_vc" -> verifiableCredential
             "mso_mdoc" -> {
                 val processedCredential = verifiableCredential.getAsJsonObject("processedCredential") ?: return null
                 getProcessedDataForMdoc(processedCredential)
