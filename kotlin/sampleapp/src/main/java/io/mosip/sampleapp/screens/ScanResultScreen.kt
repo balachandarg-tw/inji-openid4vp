@@ -87,7 +87,10 @@ fun ScanResultScreen(
                         val isSelected = selectedItems.contains(vcItem)
 
                         val typeLabel = runCatching {
-                            val typeArray = vc["type"]?.asJsonArray
+                            val credential = vc.getAsJsonObject("verifiableCredential")
+                                ?.getAsJsonObject("credential")
+
+                            val typeArray = credential?.getAsJsonArray("type")
                             if (typeArray != null && typeArray.size() > 1) {
                                 typeArray[1].asString
                             } else {

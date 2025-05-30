@@ -150,19 +150,16 @@ fun CameraPreviewAndScanner(
 
                 val prettyGson = GsonBuilder().setPrettyPrinting().create()
                 val prettyJson = prettyGson.toJson(matchingVcsResult)
-                Log.d("::::::pretty", "$matchingVcsResult")
-
-
-                dataClassToJsonObject(matchingVcsResult)
+                Log.d("::::::pretty", "$prettyJson")
 
 
                 sharedViewModel.storeMatchResult(matchingVcsResult)
 
                 delay(100)
 
-                val idCardArray = matchingVcsResult.matchingVCs["id card credential"]
+                val hasMatchingVCs = matchingVcsResult.matchingVCs.values.any { it.isNotEmpty() }
 
-                if (!idCardArray.isNullOrEmpty()) {
+                if (hasMatchingVCs) {
                     navController.navigate("scan_result")
                 }
                 else {

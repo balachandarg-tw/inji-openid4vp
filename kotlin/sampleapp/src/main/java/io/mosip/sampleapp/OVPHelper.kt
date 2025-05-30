@@ -44,8 +44,19 @@ class OVPHelper {
 
                 if (shouldInclude) {
                     val descriptorId = inputDescriptor.get("id").asString
-                    matchingVCs.getOrPut(descriptorId) { mutableListOf() }.add(vc)
+
+                    val credentialWrapper = JsonObject().apply {
+                        add("credential", vc.deepCopy())  // vc is the original JsonObject
+                    }
+
+                    val verifiableCredentialWrapper = JsonObject().apply {
+                        add("verifiableCredential", credentialWrapper)
+                        addProperty("format", "ldp_vc")
+                    }
+
+                    matchingVCs.getOrPut(descriptorId) { mutableListOf() }.add(verifiableCredentialWrapper)
                 }
+
             }
         }
 
