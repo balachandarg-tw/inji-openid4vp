@@ -49,11 +49,9 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.loadAllProperties()
-        delay(1000) // Optional: wait to ensure properties are loaded
+        delay(1000)
 
         viewModel.allProperties?.let { json ->
-            Log.d(":::::::Full JSON", json.toString()) // Compact
-            // Or pretty-printed
             val prettyJson = GsonBuilder().setPrettyPrinting().create().toJson(json)
             Log.d(":::::::Pretty JSON", prettyJson)
         }
@@ -64,16 +62,16 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
     val items = viewModel.items
 
     Box(Modifier.fillMaxSize()) {
-        Button(onClick = {
-            val parsedVc = JsonParser.parseString(SampleVcJson.MOSIP_VC).asJsonObject
-            val resultMap = OVPHelper().buildSelectedVCsMapPlain(listOf(parsedVc))
-            println(":::::::::::"+resultMap) // or pass it to the constructUnsignedVPToken logic
-        }) {
-            Text("Construct")
-        }
+//        Button(onClick = {
+//            val parsedVc = JsonParser.parseString(SampleVcJson.MOSIP_VC).asJsonObject
+//            val resultMap = OVPHelper().buildSelectedVCsMapPlain(listOf(parsedVc))
+//            println(":::::::::::"+resultMap) // or pass it to the constructUnsignedVPToken logic
+//        }) {
+//            Text("Construct")
+//        }
         if (items.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text("No items found")
+                Text("No VCs downloaded. Tap + icon to download VCs")
             }
         } else {
             LazyColumn(
@@ -131,7 +129,6 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
             }
         }
 
-        // FAB dropdown with custom labels
         Box(
             Modifier
                 .align(Alignment.BottomEnd)
@@ -139,7 +136,6 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
         ) {
             Column(horizontalAlignment = Alignment.End) {
                 if (showFabMenu) {
-                    // Use availableCredentials from ViewModel with labels
                     viewModel.availableCredentials.forEach { (label, credential) ->
                         ExtendedFloatingActionButton(
                             text = { Text(label) },

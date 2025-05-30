@@ -39,12 +39,16 @@ import androidx.navigation.NavHostController
 import com.google.gson.JsonObject
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.data.SharedViewModel
+import org.json.JSONObject
 
 @Composable
-fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostController) {
-    val matchingVCs by sharedViewModel.matchingVCs.collectAsState()
+fun ScanResultScreen(
+    sharedViewModel: SharedViewModel,
+    navController: NavHostController
+) {
+    val matchResult by sharedViewModel.matchResult.collectAsState()
 
-    val selectedItems = remember { mutableStateListOf<Pair<String, Any>>() }
+    val selectedItems = remember { mutableStateListOf<Pair<String, JSONObject>>() }
 
     var showConsentDialog by remember { mutableStateOf(false) }
     var showDeclineConfirmationDialog by remember { mutableStateOf(false) }
@@ -64,18 +68,35 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
             }
         }
 
-        Text("Matched Credentials:", style = MaterialTheme.typography.h6)
+        Text("Requested Claims: ${matchResult?.requestedClaims ?: "N/A"}", style = MaterialTheme.typography.body1)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text("Purpose: ${matchResult?.purpose ?: "N/A"}", style = MaterialTheme.typography.body2)
+        Spacer(modifier = Modifier.height(16.dp))
+
+        Text("Matching Credentials:", style = MaterialTheme.typography.h6)
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (matchingVCs.isNotEmpty()) {
+        if (matchResult?.matchingVCs?.isNotEmpty() == true) {
             LazyColumn(modifier = Modifier.weight(1f)) {
-                matchingVCs.entries.forEach { entry ->
+                matchResult!!.matchingVCs.entries.forEach { entry ->
                     val key = entry.key
                     val vcList = entry.value
 
                     items(vcList) { vc ->
                         val vcItem = key to vc
                         val isSelected = selectedItems.contains(vcItem)
+
+                        // Extract type label safely
+                        val typeLabel = runCatching {
+                            val typeArray = vc.optJSONArray("type")
+                            if (typeArray != null && typeArray.length() > 1) {
+                                typeArray.getString(1)
+                            } else {
+                                "Unnamed"
+                            }
+                        }.getOrElse {
+                            "Unnamed"
+                        }
 
                         Card(
                             modifier = Modifier
@@ -99,18 +120,21 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = vc.toString(),
-                                    maxLines = 3,
+                                    text = typeLabel,
+                                    style = MaterialTheme.typography.body1,
+                                    maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.weight(1f)
                                 )
                             }
                         }
                     }
+
                 }
             }
+        } else {
+            Text("No matching credentials found.", style = MaterialTheme.typography.body2)
         }
-
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -130,9 +154,7 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
             Spacer(modifier = Modifier.height(8.dp))
 
             TextButton(
-                onClick = {
-                    showDeclineConfirmationDialog = true
-                }
+                onClick = { showDeclineConfirmationDialog = true }
             ) {
                 Text("Reject", color = Color.Red)
             }
@@ -164,6 +186,7 @@ fun ScanResultScreen(sharedViewModel: SharedViewModel, navController: NavHostCon
         )
     }
 
+    // Decline Confirmation Dialog
     if (showDeclineConfirmationDialog) {
         AlertDialog(
             onDismissRequest = {},

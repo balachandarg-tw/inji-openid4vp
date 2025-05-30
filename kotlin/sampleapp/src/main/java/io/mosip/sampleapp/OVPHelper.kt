@@ -3,14 +3,9 @@ package io.mosip.sampleapp
 import android.util.Log
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.jayway.jsonpath.JsonPath
-import io.mosip.openID4VP.authorizationRequest.AuthorizationRequest
-import io.mosip.openID4VP.authorizationRequest.Verifier
 import io.mosip.openID4VP.authorizationRequest.WalletMetadata
-import io.mosip.openID4VP.authorizationRequest.presentationDefinition.Constraints
-import io.mosip.sampleapp.vc.SampleVcJson
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -36,12 +31,12 @@ class OVPHelper {
                         format != null || constraints?.has("fields") == true
 
                 val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vc)
-                val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
+              //  val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
 
                 val shouldInclude = if (constraints?.has("fields") == true && format != null) {
-                    matchesFormat && matchesConstraints
+                    matchesFormat
                 } else {
-                    matchesFormat || matchesConstraints
+                    matchesFormat
                 }
 
                 if (shouldInclude) {
@@ -85,22 +80,42 @@ class OVPHelper {
         requestedClaims: MutableSet<String>
     ): Boolean {
         val fields = constraints?.optJSONArray("fields") ?: return false
+        val processedCredential = fetchCredentialBasedOnFormat(vc) ?: return false
+
+        fun getJsType(value: Any?): String = when (value) {
+            is String -> "string"
+            is Int, is Long, is Double, is Float -> "number"
+            is Boolean -> "boolean"
+            is Map<*, *> -> "object"
+            is List<*> -> "array"
+            null -> "undefined"
+            else -> "object"
+        }
 
         for (i in 0 until fields.length()) {
-            val field = fields.getJSONObject(i)
+            val field = fields.optJSONObject(i) ?: continue
             val paths = field.optJSONArray("path") ?: continue
             val filter = field.optJSONObject("filter")
 
-            val fieldMatched = (0 until paths.length()).any { idx ->
-                val jsonPath = paths.getString(idx)
-                requestedClaims.add(jsonPath.split('.').lastOrNull() ?: "")
+            val fieldMatched = (0 until paths.length()).any { pathIndex ->
+                val jsonPath = paths.optString(pathIndex)
+
+                // Extract claim name from JSONPath
+                val claimName = jsonPath
+                    .replace(Regex("\\['([^']+)'\\]"), ".$1")
+                    .split('.')
+                    .lastOrNull { it.isNotEmpty() && it != "$" } ?: ""
+                requestedClaims.add(claimName)
+
                 try {
-                    val results = JsonPath.read<Any>(vc.toString(), jsonPath)
+                    val results = JsonPath.read<Any>(processedCredential.toString(), jsonPath)
+
                     if (results == null || (results is List<*> && results.isEmpty())) return@any false
+
                     if (filter == null) return@any true
 
-                    val type = filter.optString("type")
-                    results is List<*> && results.any { match -> match?.javaClass?.simpleName?.lowercase() == type.lowercase() }
+                    val expectedType = filter.optString("type")
+                    results is List<*> && results.any { match -> getJsType(match) == expectedType }
                 } catch (e: Exception) {
                     false
                 }
@@ -111,6 +126,46 @@ class OVPHelper {
 
         return true
     }
+
+    fun fetchCredentialBasedOnFormat(vc: JSONObject): JSONObject? {
+        val format = vc.optString("format")
+        val verifiableCredential = vc.optJSONObject("verifiableCredential") ?: return null
+
+        return when (format) {
+            "ldp_vc" -> verifiableCredential.optJSONObject("credential")
+            "mso_mdoc" -> {
+                val processedCredential = verifiableCredential.optJSONObject("processedCredential") ?: return null
+                getProcessedDataForMdoc(processedCredential)
+            }
+            else -> null
+        }
+    }
+
+    fun getProcessedDataForMdoc(processedCredential: JSONObject): JSONObject {
+        val issuerSigned = processedCredential.optJSONObject("issuerSigned") ?: return JSONObject()
+        val nameSpaces = issuerSigned.optJSONObject("nameSpaces") ?: return JSONObject()
+
+        val processedData = JSONObject()
+
+        val nsKeys = nameSpaces.keys()
+        for (nsKey in nsKeys) {
+            val elementsArray = nameSpaces.optJSONArray(nsKey) ?: continue
+            val asObject = JSONObject()
+
+            for (i in 0 until elementsArray.length()) {
+                val item = elementsArray.optJSONObject(i) ?: continue
+                val id = item.optString("elementIdentifier")
+                val value = item.opt("elementValue")
+                asObject.put(id, value)
+            }
+
+            processedData.put(nsKey, asObject)
+        }
+
+        return processedData
+    }
+
+
 
 
     fun buildSelectedVCsMapPlain(selectedItems: List<JsonObject>): Map<String, Map<String, List<String>>> {

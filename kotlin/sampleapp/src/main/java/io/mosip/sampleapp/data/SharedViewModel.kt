@@ -9,12 +9,14 @@ import androidx.lifecycle.viewModelScope
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import io.mosip.openID4VP.authorizationRequest.Verifier
+import io.mosip.sampleapp.MatchResult
 import io.mosip.sampleapp.data.repository.AllPropertiesRepository
 import io.mosip.sampleapp.data.repository.VerifierRepository
 import io.mosip.sampleapp.vc.SampleVcJson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 
 class SharedViewModel : ViewModel() {
     private val _items = mutableStateListOf<JsonObject>()
@@ -23,20 +25,20 @@ class SharedViewModel : ViewModel() {
     var scannedQr: String? by mutableStateOf(null)
         private set
 
-    // In SharedViewModel.kt
-    private val _matchingVCs = MutableStateFlow<Map<String, List<Any>>>(emptyMap())
-    val matchingVCs: StateFlow<Map<String, List<Any>>> = _matchingVCs
+    private val _matchResult = MutableStateFlow<MatchResult?>(null)
+    val matchResult: StateFlow<io.mosip.sampleapp.MatchResult?> = _matchResult
 
-
-    fun setMatchingVCs(matching: Map<String, List<Any>>) {
-        _matchingVCs.value = matching
+    fun storeMatchResult(result: io.mosip.sampleapp.MatchResult) {
+        viewModelScope.launch {
+            _matchResult.value = result
+        }
     }
 
 
     val availableCredentials = listOf(
-        "Add Mosip" to SampleVcJson.get(0),
-        "Add Insurance" to SampleVcJson.get(1),
-        "Add Mock" to SampleVcJson.get(2)
+        "Download Mosip" to SampleVcJson.get(0),
+        "Download Insurance" to SampleVcJson.get(1),
+        "Download Mock" to SampleVcJson.get(2)
     )
 
     var downloadedVcs: JsonObject? = null

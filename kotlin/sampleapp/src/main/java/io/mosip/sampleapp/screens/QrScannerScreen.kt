@@ -48,6 +48,8 @@ import io.mosip.openID4VP.OpenID4VP
 import io.mosip.sampleapp.OVPHelper
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.getWalletMetadata
+import io.mosip.sampleapp.isClientValidationRequired
+import io.mosip.sampleapp.utils.dataClassToJsonObject
 import io.mosip.sampleapp.vc.SampleVcJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -129,7 +131,7 @@ fun CameraPreviewAndScanner(
                         urlEncodedAuthorizationRequest = urlEncodedAuthRequest,
                         sharedViewModel.verifiers,
                         walletMetadata = getWalletMetadata(sharedViewModel.allProperties),
-                        false
+                        isClientValidationRequired(sharedViewModel.allProperties)
                     )
                 }
                 val gson = Gson()
@@ -143,6 +145,10 @@ fun CameraPreviewAndScanner(
                 val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(vcJsonList, authRequestJson)
                 Log.d("::::::", "matching Vcs: $matchingVcsResult")
 
+                dataClassToJsonObject(matchingVcsResult)
+
+
+                sharedViewModel.storeMatchResult(matchingVcsResult)
 
                 delay(100)
 
