@@ -36,8 +36,15 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
+import io.mosip.openID4VP.constants.FormatType
+
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import io.mosip.sampleapp.KeyType
 import io.mosip.sampleapp.OVPHelper
+import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.Screen
+import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.vc.SampleVcJson
 import kotlinx.coroutines.delay
@@ -149,9 +156,15 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                 }
 
                 FloatingActionButton(onClick = { showFabMenu = !showFabMenu }) {
+                   // testSigning()
                     Icon(Icons.Default.Add, contentDescription = "Add")
                 }
             }
         }
     }
 }
+
+
+
+
+

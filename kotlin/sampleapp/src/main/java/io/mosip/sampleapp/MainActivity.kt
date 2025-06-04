@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        OpenID4VPManager.init("sample-app")
         setContent {
             MaterialTheme {
                 MainApp()

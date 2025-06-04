@@ -49,6 +49,7 @@ import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import io.mosip.openID4VP.OpenID4VP
 import io.mosip.sampleapp.OVPHelper
+import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.getWalletMetadata
 import io.mosip.sampleapp.isClientValidationRequired
@@ -130,7 +131,7 @@ fun CameraPreviewAndScanner(
             try {
 
                 val authorizationRequest = withContext(Dispatchers.IO) {
-                    OpenID4VP("sample-app").authenticateVerifier(
+                    OpenID4VPManager.instance.authenticateVerifier(
                         urlEncodedAuthorizationRequest = urlEncodedAuthRequest,
                         sharedViewModel.verifiers,
                         walletMetadata = getWalletMetadata(sharedViewModel.allProperties),

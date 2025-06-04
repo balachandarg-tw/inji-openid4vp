@@ -1,5 +1,6 @@
 package io.mosip.sampleapp.screens
 
+import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -29,6 +30,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,9 +38,23 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
+import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.reflect.TypeToken
+import io.mosip.openID4VP.OpenID4VP
+import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.VPTokenSigningResult
+import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.ldp.LdpVPTokenSigningResult
+import io.mosip.openID4VP.constants.FormatType
+import io.mosip.sampleapp.KeyType
+import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.Screen
+import io.mosip.sampleapp.SignedVPJWT
+import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
+import io.mosip.sampleapp.vc.SampleVcJson
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun ScanResultScreen(
@@ -138,6 +154,7 @@ fun ScanResultScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
+        val coroutineScope = rememberCoroutineScope()
 
         Column(
             modifier = Modifier
@@ -146,7 +163,13 @@ fun ScanResultScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Button(
-                onClick = { showConsentDialog = true },
+                onClick = {
+                    coroutineScope.launch {
+                        testSigning()
+                        showConsentDialog = true
+                    }
+
+              },
                 enabled = selectedItems.isNotEmpty()
             ) {
                 Text("Share")
@@ -212,4 +235,67 @@ fun ScanResultScreen(
         )
     }
 }
+
+
+
+fun constructUnsignedVpToken() {
+
+    val selectedLdpCredentialsList = mapOf(
+        "id card credential" to mapOf(
+            FormatType.LDP_VC to listOf(
+                SampleVcJson.MOSIP_VC
+            )
+        )
+    )
+    val unsignedVpToken = OpenID4VPManager.instance.constructUnsignedVPToken(selectedLdpCredentialsList)
+    println("======unsignedVpToken$unsignedVpToken")
+}
+
+suspend fun testSigning() = withContext(Dispatchers.IO) {
+    val selectedLdpCredentialsList = mapOf(
+        "id card credential" to mapOf(
+            FormatType.LDP_VC to listOf(SampleVcJson.MOSIP_VC)
+        )
+    )
+
+    val unsignedVpTokenMap = OpenID4VPManager.instance.constructUnsignedVPToken(selectedLdpCredentialsList)
+    val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: run {
+        println("No LDP_VC payload found")
+        return@withContext
+    }
+
+    val gson = Gson()
+    val jsonElement = gson.toJsonTree(vpPayload)
+    val mapPayload: Map<String, Any> = gson.fromJson(
+        jsonElement,
+        object : TypeToken<Map<String, Any>>() {}.type
+    )
+
+    val keyType = KeyType.RSA
+    val keyPair = VPTokenSigner.generateKeyPair(keyType)
+    val result: SignedVPJWT = VPTokenSigner.signVPToken(keyPair, keyType, mapPayload)
+
+    val ldpSigningResult = LdpVPTokenSigningResult(
+        jws = result.jwt,
+        signatureAlgorithm = result.algorithm,
+        publicKey = result.publicJWK,
+        domain = "example.com" // <-- replace with your real domain if needed
+    )
+
+    val vpTokenSigningResultMap: Map<FormatType, VPTokenSigningResult> = mapOf(
+        FormatType.LDP_VC to ldpSigningResult
+    )
+
+    try {
+        val finalResponse = OpenID4VPManager.instance.shareVerifiablePresentation(vpTokenSigningResultMap)
+        Log.d("VP_SHARE", "######## $finalResponse")
+    } catch (e: Exception) {
+        Log.e("VP_SHARE", "Error sharing VP", e)
+    }
+
+    Log.d("VP_SIGNED", "Signed JWT: ${result.jwt}")
+    Log.d("VP_SIGNED", "Public JWK: ${result.publicJWK}")
+    Log.d("VP_SIGNED", "Alg Used: ${result.algorithm}")
+}
+
 

@@ -92,6 +92,11 @@ dependencies {
     implementation("com.google.guava:guava:31.1-android")
     implementation("com.jayway.jsonpath:json-path:2.9.0")
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0")
+    implementation("com.nimbusds:nimbus-jose-jwt:9.31")
+    implementation("com.google.crypto.tink:tink-android:1.6.1")
+
+
+
 
 
 
