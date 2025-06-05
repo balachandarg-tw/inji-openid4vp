@@ -7,7 +7,7 @@ object SampleVcJson {
     const val MOSIP_VC = """
 {
     "@context": [
-        "https://www.w3.org/2018/credentials/v1",
+        "https://www.w3.org/2018/credentials/v1/mosip",
         "https://schema.org/"
     ],
     "credentialSubject": {
@@ -110,7 +110,7 @@ object SampleVcJson {
     const val INSURANCE_VC = """
 {
     "@context": [
-        "https://www.w3.org/2018/credentials/v1",
+        "https://www.w3.org/2018/credentials/v1/insurance",
         "https://schema.org/"
     ],
     "credentialSubject": {
@@ -213,7 +213,7 @@ object SampleVcJson {
     const val MOCK_VC = """
 {
     "@context": [
-        "https://www.w3.org/2018/credentials/v1",
+        "https://www.w3.org/2018/credentials/v1/mock",
         "https://schema.org/"
     ],
     "credentialSubject": {

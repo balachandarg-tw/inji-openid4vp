@@ -3,9 +3,11 @@ package io.mosip.sampleapp
 import android.util.Log
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.jayway.jsonpath.JsonPath
 import io.mosip.openID4VP.authorizationRequest.WalletMetadata
+import io.mosip.openID4VP.constants.FormatType
 
 
 class OVPHelper {
@@ -50,7 +52,10 @@ class OVPHelper {
                         addProperty("format", "ldp_vc")
                     }
 
-                    matchingVCs.getOrPut(descriptorId) { mutableListOf() }.add(verifiableCredentialWrapper)
+                    val list = matchingVCs.getOrPut(descriptorId) { mutableListOf() }
+                    if (verifiableCredentialWrapper !in list) {
+                        list.add(verifiableCredentialWrapper)
+                    }
                 }
 
             }
@@ -184,6 +189,38 @@ class OVPHelper {
 
         return processedData
     }
+
+    fun buildSelectedVCsMapPlain(
+        selectedItems: List<Pair<String, JsonObject>>
+    ): Map<String, Map<FormatType, List<String>>> {
+        val result = mutableMapOf<String, MutableMap<FormatType, MutableList<String>>>()
+        val gson = Gson()
+
+        for ((inputDescriptorId, vcObject) in selectedItems) {
+            val formatString = vcObject.get("format")?.asString ?: continue
+            val formatType = try {
+                FormatType.valueOf(formatString.uppercase().replace("-", "_"))
+            } catch (e: IllegalArgumentException) {
+                continue
+            }
+
+            val credential = vcObject.getAsJsonObject("verifiableCredential")?.getAsJsonObject("credential") ?: continue
+
+            val credentialWrapper = JsonObject().apply {
+                add("credential", credential)
+            }
+
+            val credentialJson = gson.toJson(credentialWrapper)
+
+            val formatMap = result.getOrPut(inputDescriptorId) { mutableMapOf() }
+            val credentialList = formatMap.getOrPut(formatType) { mutableListOf() }
+
+            credentialList.add(credentialJson)
+        }
+
+        return result
+    }
+
 }
 
 data class MatchResult(
@@ -246,3 +283,5 @@ fun isClientValidationRequired(allProperties: JsonObject?): Boolean {
         false
     }
 }
+
+

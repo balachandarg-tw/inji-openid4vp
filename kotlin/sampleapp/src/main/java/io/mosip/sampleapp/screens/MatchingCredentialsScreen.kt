@@ -32,6 +32,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -46,6 +47,7 @@ import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.ldp.L
 import io.mosip.openID4VP.constants.FormatType
 import io.mosip.sampleapp.Constants
 import io.mosip.sampleapp.KeyType
+import io.mosip.sampleapp.OVPHelper
 import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.SignedVPJWT
@@ -207,8 +209,7 @@ fun MatchingCredentialsScreen(
                 TextButton(onClick = {
                     showConsentDialog = false
                     coroutineScope.launch {
-                        print(":::::: $selectedItems")
-                        testSigning()
+                        sendVP(selectedItems)
                     }
                     navController.navigate(Screen.Success.route)
                 }) {
@@ -266,30 +267,11 @@ fun handleDecline(
     }
 }
 
+suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, JsonObject>>) = withContext(Dispatchers.IO) {
 
+    val parsedSelectedItems = OVPHelper().buildSelectedVCsMapPlain(selectedItems)
 
-
-fun constructUnsignedVpToken() {
-
-    val selectedLdpCredentialsList = mapOf(
-        "id card credential" to mapOf(
-            FormatType.LDP_VC to listOf(
-                SampleVcJson.MOSIP_VC
-            )
-        )
-    )
-    val unsignedVpToken = OpenID4VPManager.instance.constructUnsignedVPToken(selectedLdpCredentialsList)
-    println("======unsignedVpToken$unsignedVpToken")
-}
-
-suspend fun testSigning() = withContext(Dispatchers.IO) {
-    val selectedLdpCredentialsList = mapOf(
-        "id card credential" to mapOf(
-            FormatType.LDP_VC to listOf(SampleVcJson.MOSIP_VC)
-        )
-    )
-
-    val unsignedVpTokenMap = OpenID4VPManager.instance.constructUnsignedVPToken(selectedLdpCredentialsList)
+    val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(parsedSelectedItems)
     val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: run {
         println("No LDP_VC payload found")
         return@withContext
@@ -318,15 +300,11 @@ suspend fun testSigning() = withContext(Dispatchers.IO) {
     )
 
     try {
-        val finalResponse = OpenID4VPManager.instance.shareVerifiablePresentation(vpTokenSigningResultMap)
+        val finalResponse = OpenID4VPManager.shareVerifiablePresentation(vpTokenSigningResultMap)
         Log.d("VP_SHARE", "######## $finalResponse")
     } catch (e: Exception) {
         Log.e("VP_SHARE", "Error sharing VP", e)
     }
-
-    Log.d("VP_SIGNED", "Signed JWT: ${result.jwt}")
-    Log.d("VP_SIGNED", "Public JWK: ${result.publicJWK}")
-    Log.d("VP_SIGNED", "Alg Used: ${result.algorithm}")
 }
 
 
