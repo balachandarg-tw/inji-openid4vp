@@ -1,6 +1,5 @@
 package io.mosip.sampleapp
 
-import QrScannerScreen
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.BottomNavigation
 import androidx.compose.material.BottomNavigationItem
@@ -21,14 +20,15 @@ import androidx.navigation.compose.rememberNavController
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.screens.DetailScreen
 import io.mosip.sampleapp.screens.HomeScreen
-import io.mosip.sampleapp.screens.ScanResultScreen
+import io.mosip.sampleapp.screens.MatchingCredentialsScreen
+import io.mosip.sampleapp.screens.ShareScreen
 import io.mosip.sampleapp.screens.SuccessScreen
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
-    object QrScanner : Screen("qr_scanner")
-    object ScanResult : Screen("scan_result")
     object Details : Screen("details")
+    object Share : Screen("share")
+    object MatchingVcs : Screen("matching_vcs")
     object Success : Screen("success")
 }
 
@@ -42,7 +42,7 @@ fun MainApp() {
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != Screen.Details.route && currentRoute != Screen.ScanResult.route &&  currentRoute != Screen.Success.route) {
+            if (currentRoute != Screen.Details.route && currentRoute != Screen.MatchingVcs.route &&  currentRoute != Screen.Success.route) {
                 BottomNavigation {
                     BottomNavigationItem(
                         icon = { Icon(Icons.Default.Home, contentDescription = null) },
@@ -57,9 +57,9 @@ fun MainApp() {
                     BottomNavigationItem(
                         icon = { Icon(Icons.Default.Share, contentDescription = null) },
                         label = { Text("Share") },
-                        selected = currentRoute == Screen.QrScanner.route,
+                        selected = currentRoute == Screen.Share.route,
                         onClick = {
-                            navController.navigate(Screen.QrScanner.route) {
+                            navController.navigate(Screen.Share.route) {
                                 launchSingleTop = true
                             }
                         }
@@ -76,11 +76,11 @@ fun MainApp() {
             composable(Screen.Home.route) {
                 HomeScreen(navController, sharedViewModel)
             }
-            composable(Screen.QrScanner.route) {
-                QrScannerScreen(navController, sharedViewModel)
+            composable(Screen.Share.route) {
+                ShareScreen(navController, sharedViewModel)
             }
-            composable(Screen.ScanResult.route) {
-                ScanResultScreen(sharedViewModel, navController)
+            composable(Screen.MatchingVcs.route) {
+                MatchingCredentialsScreen(sharedViewModel, navController)
             }
             composable(Screen.Details.route) {
                 DetailScreen(sharedViewModel, navController)

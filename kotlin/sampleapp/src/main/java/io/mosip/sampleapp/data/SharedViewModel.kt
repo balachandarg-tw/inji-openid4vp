@@ -16,14 +16,36 @@ import io.mosip.sampleapp.vc.SampleVcJson
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import org.json.JSONObject
 
 class SharedViewModel : ViewModel() {
-    private val _items = mutableStateListOf<JsonObject>()
-    val items: List<JsonObject> get() = _items
+
+    val issuersList = listOf(
+        "Download Mosip" to SampleVcJson.get(0),
+        "Download Insurance" to SampleVcJson.get(1),
+        "Download Mock" to SampleVcJson.get(2)
+    )
+
+
+    private val _downloadedVcs = mutableStateListOf<JsonObject>()
+    val downloadedVcs: List<JsonObject> get() = _downloadedVcs
+
+    fun addVC(item: JsonObject) {
+        _downloadedVcs.add(item)
+    }
+
+    fun removeVC(index: Int) {
+        _downloadedVcs.removeAt(index)
+    }
 
     var scannedQr: String? by mutableStateOf(null)
         private set
+
+    fun updateScannedQr(data: String) {
+        scannedQr = data
+    }
+
+
+
 
     private val _matchResult = MutableStateFlow<MatchResult?>(null)
     val matchResult: StateFlow<io.mosip.sampleapp.MatchResult?> = _matchResult
@@ -35,34 +57,18 @@ class SharedViewModel : ViewModel() {
     }
 
 
-    val availableCredentials = listOf(
-        "Download Mosip" to SampleVcJson.get(0),
-        "Download Insurance" to SampleVcJson.get(1),
-        "Download Mock" to SampleVcJson.get(2)
-    )
 
-    var downloadedVcs: JsonObject? = null
+
+    var vcSelectedForDetails : JsonObject? = null
         private set
 
-    fun selectItem(item: JsonObject) {
-        downloadedVcs = item
+    fun displayVcDetails(item: JsonObject) {
+        vcSelectedForDetails = item
     }
 
-    fun addItem(item: JsonObject) {
-        _items.add(item)
-    }
 
-    fun removeItem(index: Int) {
-        _items.removeAt(index)
-    }
 
-    fun clearItems() {
-        _items.clear()
-    }
 
-    fun updateScannedQr(data: String) {
-        scannedQr = data
-    }
 
 
     private val repository = VerifierRepository()
@@ -79,8 +85,6 @@ class SharedViewModel : ViewModel() {
         viewModelScope.launch {
             repository.fetchVerifiers()?.let { jsonList ->
                 verifiersJson = jsonList
-
-                // Map Gson JsonObject to Verifier data class
                 verifiers = jsonList.map { mapJsonObjectToVerifier(it) }
             }
         }
@@ -91,9 +95,12 @@ class SharedViewModel : ViewModel() {
         return gson.fromJson(jsonObject, Verifier::class.java)
     }
 
-    val allPropertiesRepository = AllPropertiesRepository()
+
+
     var allProperties by mutableStateOf<JsonObject?>(null)
         private set
+
+    private val allPropertiesRepository = AllPropertiesRepository()
 
     fun loadAllProperties() {
         viewModelScope.launch {

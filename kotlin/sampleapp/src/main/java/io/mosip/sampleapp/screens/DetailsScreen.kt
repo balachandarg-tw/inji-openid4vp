@@ -21,7 +21,7 @@ import io.mosip.sampleapp.data.SharedViewModel
 
 @Composable
 fun DetailScreen(viewModel: SharedViewModel, navController: NavHostController) {
-    val jsonObj = viewModel.downloadedVcs
+    val jsonObj = viewModel.vcSelectedForDetails
 
     Scaffold(
         topBar = {

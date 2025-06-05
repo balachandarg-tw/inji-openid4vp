@@ -3,13 +3,9 @@ package io.mosip.sampleapp
 import android.util.Log
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.google.gson.JsonArray
-import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.jayway.jsonpath.JsonPath
 import io.mosip.openID4VP.authorizationRequest.WalletMetadata
-import org.json.JSONArray
-import org.json.JSONObject
 
 
 class OVPHelper {
@@ -46,7 +42,7 @@ class OVPHelper {
                     val descriptorId = inputDescriptor.get("id").asString
 
                     val credentialWrapper = JsonObject().apply {
-                        add("credential", vc.deepCopy())  // vc is the original JsonObject
+                        add("credential", vc.deepCopy())
                     }
 
                     val verifiableCredentialWrapper = JsonObject().apply {
@@ -72,7 +68,7 @@ class OVPHelper {
         )
     }
 
-    fun areVCFormatAndProofTypeMatchingRequest(format: JsonObject?, vc: JsonObject): Boolean {
+    private fun areVCFormatAndProofTypeMatchingRequest(format: JsonObject?, vc: JsonObject): Boolean {
         if (format == null) return false
 
         val proof = vc.getAsJsonObject("proof") ?: return false
@@ -85,7 +81,7 @@ class OVPHelper {
         }
     }
 
-    fun isVCMatchingRequestConstraints(
+    private fun isVCMatchingRequestConstraints(
         constraints: JsonObject?,
         vc: JsonObject,
         requestedClaims: MutableSet<String>
@@ -152,7 +148,7 @@ class OVPHelper {
 
 
 
-    fun fetchCredentialBasedOnFormat(vc: JsonObject): JsonObject? {
+    private fun fetchCredentialBasedOnFormat(vc: JsonObject): JsonObject? {
         val format = vc.get("format")?.asString ?: "ldp_vc"
         val verifiableCredential = vc ?: return null
 
@@ -166,7 +162,7 @@ class OVPHelper {
         }
     }
 
-    fun getProcessedDataForMdoc(processedCredential: JsonObject): JsonObject {
+    private fun getProcessedDataForMdoc(processedCredential: JsonObject): JsonObject {
         val issuerSigned = processedCredential.getAsJsonObject("issuerSigned") ?: return JsonObject()
         val nameSpaces = issuerSigned.getAsJsonObject("nameSpaces") ?: return JsonObject()
 
@@ -188,33 +184,6 @@ class OVPHelper {
 
         return processedData
     }
-
-    fun buildSelectedVCsMapPlain(selectedItems: List<JsonObject>): Map<String, Map<String, List<String>>> {
-        val rootMap = mutableMapOf<String, MutableMap<String, MutableList<String>>>()
-
-        selectedItems.forEach { vc ->
-            val inputDescriptorId = vc["input_descriptor_id"]?.asString ?: return@forEach
-            val formatType = "ldp_vc"
-            val vcString = vc.toString()
-
-            val formatMap = rootMap.getOrPut(inputDescriptorId) { mutableMapOf() }
-            val vcList = formatMap.getOrPut(formatType) { mutableListOf() }
-
-            vcList.add(vcString)
-        }
-
-        return rootMap
-    }
-}
-
-
-fun <T> JSONArray.toList(): List<T> {
-    val result = mutableListOf<T>()
-    for (i in 0 until length()) {
-        @Suppress("UNCHECKED_CAST")
-        result.add(get(i) as T)
-    }
-    return result
 }
 
 data class MatchResult(
@@ -225,7 +194,7 @@ data class MatchResult(
 
 
 
-fun getWalletMetadata(allProperties: JsonObject?): WalletMetadata {
+fun extractWalletMetadata(allProperties: JsonObject?): WalletMetadata {
     val hardcodedMetadataJson = """
     {
       "presentation_definition_uri_supported": true,

@@ -1,3 +1,5 @@
+package io.mosip.sampleapp.screens
+
 import android.Manifest
 import android.content.pm.PackageManager
 import android.util.Log
@@ -38,32 +40,26 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import androidx.navigation.NavController
 import androidx.navigation.NavHostController
 import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
-import io.mosip.openID4VP.OpenID4VP
+import io.mosip.sampleapp.Constants
 import io.mosip.sampleapp.OVPHelper
 import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.data.SharedViewModel
-import io.mosip.sampleapp.getWalletMetadata
-import io.mosip.sampleapp.isClientValidationRequired
-import io.mosip.sampleapp.utils.dataClassToJsonObject
-import io.mosip.sampleapp.vc.SampleVcJson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
 import java.util.concurrent.Executors
 
 @OptIn(ExperimentalGetImage::class)
 @Composable
-fun QrScannerScreen(navController: NavHostController, sharedViewModel: SharedViewModel) {
+fun ShareScreen(navController: NavHostController, sharedViewModel: SharedViewModel) {
     val context = LocalContext.current
 
     var hasCameraPermission by remember {
@@ -121,64 +117,21 @@ fun CameraPreviewAndScanner(
     var scannedText by remember { mutableStateOf<String?>(null) }
     var showErrorDialog by remember { mutableStateOf(false) }
     var scanningEnabled by remember { mutableStateOf(true) }
-    val verifiers = sharedViewModel.verifiers
+
     LaunchedEffect(scannedText) {
-        scannedText?.let { urlEncodedAuthRequest ->
-            sharedViewModel.updateScannedQr(urlEncodedAuthRequest)
-
-
-
-            try {
-
-                val authorizationRequest = withContext(Dispatchers.IO) {
-                    OpenID4VPManager.instance.authenticateVerifier(
-                        urlEncodedAuthorizationRequest = urlEncodedAuthRequest,
-                        sharedViewModel.verifiers,
-                        walletMetadata = getWalletMetadata(sharedViewModel.allProperties),
-                        isClientValidationRequired(sharedViewModel.allProperties)
-                    )
-                }
-                val gson = Gson()
-                val vcJson = sharedViewModel.items
-                val vcJsonList = listOf(vcJson)
-                val authRequestJson: JsonObject = gson.toJsonTree(authorizationRequest).asJsonObject
-
-                Log.d(":::::::authrequest", "$authRequestJson")
-
-
-                val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(vcJson, authRequestJson)
-                Log.d("::::::", "matching Vcs: $matchingVcsResult")
-
-                val prettyGson = GsonBuilder().setPrettyPrinting().create()
-                val prettyJson = prettyGson.toJson(matchingVcsResult)
-                Log.d("::::::pretty", "$prettyJson")
-
-
-                sharedViewModel.storeMatchResult(matchingVcsResult)
-
-                delay(100)
-
-                val hasMatchingVCs = matchingVcsResult.matchingVCs.values.any { it.isNotEmpty() }
-
-                if (hasMatchingVCs) {
-                    navController.navigate("scan_result")
-                }
-                else {
-                    Log.d("CameraScanner", "No matching credentials found")
-                    showErrorDialog = true
-                    scanningEnabled = false
-                }
-
-            } catch (e: Exception) {
-                Log.e("CameraScanner", "Library processing failed", e)
-                showErrorDialog = true
-                scanningEnabled = false
-            }
+        scannedText?.let {
+            handleScannedText(
+                urlEncodedAuthRequest = it,
+                sharedViewModel = sharedViewModel,
+                navController = navController,
+                showError = { showErrorDialog = true },
+                disableScanning = { scanningEnabled = false }
+            )
         }
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // Camera Preview
+
         AndroidView(factory = { ctx ->
             val previewView = androidx.camera.view.PreviewView(ctx)
 
@@ -212,7 +165,6 @@ fun CameraPreviewAndScanner(
                             for (barcode in barcodes) {
                                 barcode.rawValue?.let { value ->
                                     if (scannedText != value) {
-                                        Log.d("QrScanner", "QR Code scanned: $value")
                                         Toast.makeText(context, "Scanned: $value", Toast.LENGTH_SHORT).show()
                                         scannedText = value
                                         scanningEnabled = false
@@ -221,7 +173,7 @@ fun CameraPreviewAndScanner(
                             }
                         }
                         .addOnFailureListener {
-                            Log.e("QrScanner", "Barcode scanning failed", it)
+                            Log.e("ShareScreen", "QrCode scanning failed", it)
                         }
                         .addOnCompleteListener {
                             imageProxy.close()
@@ -242,53 +194,110 @@ fun CameraPreviewAndScanner(
                     analysisUseCase
                 )
             } catch (e: Exception) {
-                Log.e("QrScanner", "Use case binding failed", e)
+                Log.e("ShareScreen", "Use case binding failed", e)
             }
 
             previewView
         })
 
-        // Full-Screen Error Dialog
+
         if (showErrorDialog) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color.White.copy(alpha = 0.95f))
-                    .clickable(enabled = false) {}, // Block interaction with background
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier
-                        .padding(24.dp)
-                        .fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Invalid QR Code",
-                        style = MaterialTheme.typography.h5,
-                        color = Color.Red
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "No matching credential found for the scanned QR code.",
-                        style = MaterialTheme.typography.body1,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = {
-                            showErrorDialog = false
-                            scanningEnabled = true
-                            scannedText = null
-                        }
-                    ) {
-                        Text("OK")
-                    }
+            LaunchedEffect(Unit) {
+                withContext(Dispatchers.IO) {
+                    OpenID4VPManager.sendErrorToVerifier(Constants.ERR_NO_MATCHING_VCs)
                 }
+            }
+
+            ErrorOverlay {
+                showErrorDialog = false
+                scanningEnabled = true
+                scannedText = null
             }
         }
     }
 }
+
+@Composable
+fun ErrorOverlay(onDismiss: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.White.copy(alpha = 0.95f))
+            .clickable(enabled = false) {},
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .padding(24.dp)
+                .fillMaxWidth()
+        ) {
+            Text(
+                text = "Invalid QR Code",
+                style = MaterialTheme.typography.h5,
+                color = Color.Red
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "No matching credential found for the scanned QR code.",
+                style = MaterialTheme.typography.body1,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+            Button(onClick = onDismiss) {
+                Text("OK")
+            }
+        }
+    }
+}
+
+
+suspend fun handleScannedText(
+    urlEncodedAuthRequest: String,
+    sharedViewModel: SharedViewModel,
+    navController: NavController,
+    showError: () -> Unit,
+    disableScanning: () -> Unit
+) {
+    val gson = Gson()
+    sharedViewModel.updateScannedQr(urlEncodedAuthRequest)
+
+    try {
+        val authorizationRequest = withContext(Dispatchers.IO) {
+            OpenID4VPManager.authenticateVerifier(
+                urlEncodedAuthRequest,
+                sharedViewModel.verifiers,
+                sharedViewModel.allProperties
+            )
+        }
+
+
+        val downloadedVcs = sharedViewModel.downloadedVcs
+        val authRequestJson: JsonObject = gson.toJsonTree(authorizationRequest).asJsonObject
+
+        val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(downloadedVcs, authRequestJson)
+
+        sharedViewModel.storeMatchResult(matchingVcsResult)
+
+        delay(100)
+
+        val hasMatchingVCs = matchingVcsResult.matchingVCs.values.any { it.isNotEmpty() }
+
+        if (hasMatchingVCs) {
+            navController.navigate("matching_vcs")
+        } else {
+            Log.d("CameraScanner", "No matching credentials found")
+            showError()
+            disableScanning()
+        }
+
+    } catch (e: Exception) {
+        Log.e("CameraScanner", "Library processing failed", e)
+        showError()
+        disableScanning()
+    }
+}
+
 
 
 

@@ -1,6 +1,5 @@
 package io.mosip.sampleapp.screens
 
-import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -23,7 +22,6 @@ import androidx.compose.material.Text
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material3.Button
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,20 +32,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonParser
-import io.mosip.openID4VP.constants.FormatType
-
-import com.google.gson.Gson
-import com.google.gson.reflect.TypeToken
-import io.mosip.sampleapp.KeyType
-import io.mosip.sampleapp.OVPHelper
-import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.Screen
-import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
-import io.mosip.sampleapp.vc.SampleVcJson
-import kotlinx.coroutines.delay
 
 @Composable
 fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
@@ -56,27 +42,12 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.loadAllProperties()
-        delay(1000)
-
-        viewModel.allProperties?.let { json ->
-            val prettyJson = GsonBuilder().setPrettyPrinting().create().toJson(json)
-            Log.d(":::::::Pretty JSON", prettyJson)
-        }
     }
 
-
-
-    val items = viewModel.items
+    val downloadedVcs = viewModel.downloadedVcs
 
     Box(Modifier.fillMaxSize()) {
-//        Button(onClick = {
-//            val parsedVc = JsonParser.parseString(SampleVcJson.MOSIP_VC).asJsonObject
-//            val resultMap = OVPHelper().buildSelectedVCsMapPlain(listOf(parsedVc))
-//            println(":::::::::::"+resultMap) // or pass it to the constructUnsignedVPToken logic
-//        }) {
-//            Text("Construct")
-//        }
-        if (items.isEmpty()) {
+        if (downloadedVcs.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("No VCs downloaded. Tap + icon to download VCs")
             }
@@ -87,13 +58,13 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                     .padding(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                itemsIndexed(items) { index, jsonObj ->
+                itemsIndexed(downloadedVcs) { index, jsonObj ->
                     Card(
                         elevation = 4.dp,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                viewModel.selectItem(jsonObj)
+                                viewModel.displayVcDetails(jsonObj)
                                 navController.navigate(Screen.Details.route)
                             }
                     ) {
@@ -107,7 +78,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                             val typeArray = jsonObj.getAsJsonArray("type")
                             val typeLabel = if (typeArray != null && typeArray.size() > 1) {
                                 typeArray[1].asString
-                            } else "Unnamed"
+                            } else "-"
 
                             Text(typeLabel, style = MaterialTheme.typography.body1)
 
@@ -123,7 +94,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                                     onDismissRequest = { expandedRowIndex = null }
                                 ) {
                                     DropdownMenuItem(onClick = {
-                                        viewModel.removeItem(index)
+                                        viewModel.removeVC(index)
                                         expandedRowIndex = null
                                     }) {
                                         Text("Delete")
@@ -143,20 +114,18 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
         ) {
             Column(horizontalAlignment = Alignment.End) {
                 if (showFabMenu) {
-                    viewModel.availableCredentials.forEach { (label, credential) ->
+                    viewModel.issuersList.forEach { (label, credential) ->
                         ExtendedFloatingActionButton(
                             text = { Text(label) },
                             onClick = {
-                                viewModel.addItem(credential.deepCopy()) // Avoid shared ref
+                                viewModel.addVC(credential.deepCopy())
                                 showFabMenu = false
                             },
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                     }
                 }
-
                 FloatingActionButton(onClick = { showFabMenu = !showFabMenu }) {
-                   // testSigning()
                     Icon(Icons.Default.Add, contentDescription = "Add")
                 }
             }

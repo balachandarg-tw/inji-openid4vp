@@ -41,10 +41,10 @@ import androidx.navigation.NavHostController
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
-import io.mosip.openID4VP.OpenID4VP
 import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.VPTokenSigningResult
 import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.ldp.LdpVPTokenSigningResult
 import io.mosip.openID4VP.constants.FormatType
+import io.mosip.sampleapp.Constants
 import io.mosip.sampleapp.KeyType
 import io.mosip.sampleapp.OpenID4VPManager
 import io.mosip.sampleapp.Screen
@@ -52,12 +52,13 @@ import io.mosip.sampleapp.SignedVPJWT
 import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.vc.SampleVcJson
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 @Composable
-fun ScanResultScreen(
+fun MatchingCredentialsScreen(
     sharedViewModel: SharedViewModel,
     navController: NavHostController
 ) {
@@ -66,22 +67,32 @@ fun ScanResultScreen(
 
     var showConsentDialog by remember { mutableStateOf(false) }
     var showDeclineConfirmationDialog by remember { mutableStateOf(false) }
-
+    val coroutineScope = rememberCoroutineScope()
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        // Close Button
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
         ) {
+            val coroutineScope = rememberCoroutineScope()
+
             IconButton(onClick = {
-                navController.popBackStack(Screen.QrScanner.route, inclusive = false)
+                coroutineScope.launch(Dispatchers.IO) {
+
+                    OpenID4VPManager.sendErrorToVerifier(Constants.ERR_DECLINED)
+
+                    withContext(Dispatchers.Main) {
+                        navController.popBackStack(Screen.Share.route, inclusive = false)
+                    }
+                }
             }) {
                 Icon(Icons.Default.Close, contentDescription = "Close")
             }
+
         }
 
         Text("Requested Claims: ${matchResult?.requestedClaims ?: "N/A"}", style = MaterialTheme.typography.body1)
@@ -154,7 +165,7 @@ fun ScanResultScreen(
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-        val coroutineScope = rememberCoroutineScope()
+
 
         Column(
             modifier = Modifier
@@ -164,10 +175,7 @@ fun ScanResultScreen(
         ) {
             Button(
                 onClick = {
-                    coroutineScope.launch {
-                        testSigning()
                         showConsentDialog = true
-                    }
 
               },
                 enabled = selectedItems.isNotEmpty()
@@ -177,23 +185,31 @@ fun ScanResultScreen(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            TextButton(
-                onClick = { showDeclineConfirmationDialog = true }
-            ) {
+
+
+            TextButton(onClick = {
+                handleDecline(coroutineScope) {
+                    navController.popBackStack(Screen.Share.route, inclusive = false)
+                }
+            }) {
                 Text("Reject", color = Color.Red)
             }
         }
     }
 
-    // Consent Dialog
+
     if (showConsentDialog) {
         AlertDialog(
-            onDismissRequest = {},
+            onDismissRequest = { showConsentDialog = false},
             title = { Text("Consent Required") },
             text = { Text("Do you want to share selected credentials?") },
             confirmButton = {
                 TextButton(onClick = {
                     showConsentDialog = false
+                    coroutineScope.launch {
+                        print(":::::: $selectedItems")
+                        testSigning()
+                    }
                     navController.navigate(Screen.Success.route)
                 }) {
                     Text("Yes, Proceed")
@@ -210,16 +226,18 @@ fun ScanResultScreen(
         )
     }
 
-    // Decline Confirmation Dialog
     if (showDeclineConfirmationDialog) {
         AlertDialog(
-            onDismissRequest = {},
+            onDismissRequest = { showDeclineConfirmationDialog = false },
             title = { Text("Are you sure?") },
             text = { Text("Do you want to go back to scanning?") },
             confirmButton = {
                 TextButton(onClick = {
-                    showDeclineConfirmationDialog = false
-                    navController.popBackStack(Screen.QrScanner.route, inclusive = false)
+                    handleDecline(coroutineScope) {
+                        showDeclineConfirmationDialog = false
+                        navController.popBackStack(Screen.Share.route, inclusive = false)
+
+                    }
                 }) {
                     Text("Yes")
                 }
@@ -235,6 +253,19 @@ fun ScanResultScreen(
         )
     }
 }
+
+fun handleDecline(
+    coroutineScope: CoroutineScope,
+    onDeclineConfirmed: () -> Unit
+) {
+    coroutineScope.launch(Dispatchers.IO) {
+        OpenID4VPManager.sendErrorToVerifier(Constants.ERR_DECLINED)
+        withContext(Dispatchers.Main) {
+            onDeclineConfirmed()
+        }
+    }
+}
+
 
 
 
@@ -279,7 +310,7 @@ suspend fun testSigning() = withContext(Dispatchers.IO) {
         jws = result.jwt,
         signatureAlgorithm = result.algorithm,
         publicKey = result.publicJWK,
-        domain = "example.com" // <-- replace with your real domain if needed
+        domain = "OpenID4VP"
     )
 
     val vpTokenSigningResultMap: Map<FormatType, VPTokenSigningResult> = mapOf(
