@@ -53,7 +53,7 @@ import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.SignedVPJWT
 import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
-import io.mosip.sampleapp.vc.SampleVcJson
+import io.mosip.sampleapp.vc.VCWithFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -65,28 +65,24 @@ fun MatchingCredentialsScreen(
     navController: NavHostController
 ) {
     val matchResult by sharedViewModel.matchResult.collectAsState()
-    val selectedItems = remember { mutableStateListOf<Pair<String, JsonObject>>() }
+    val selectedItems = remember { mutableStateListOf<Pair<String, VCWithFormat>>() }
 
     var showConsentDialog by remember { mutableStateOf(false) }
     var showDeclineConfirmationDialog by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(16.dp)
     ) {
-
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End
         ) {
-            val coroutineScope = rememberCoroutineScope()
-
             IconButton(onClick = {
                 coroutineScope.launch(Dispatchers.IO) {
-
                     OpenID4VPManager.sendErrorToVerifier(Constants.ERR_DECLINED)
-
                     withContext(Dispatchers.Main) {
                         navController.popBackStack(Screen.Share.route, inclusive = false)
                     }
@@ -94,7 +90,6 @@ fun MatchingCredentialsScreen(
             }) {
                 Icon(Icons.Default.Close, contentDescription = "Close")
             }
-
         }
 
         Text("Requested Claims: ${matchResult?.requestedClaims ?: "N/A"}", style = MaterialTheme.typography.body1)
@@ -109,25 +104,21 @@ fun MatchingCredentialsScreen(
             LazyColumn(modifier = Modifier.weight(1f)) {
                 matchResult!!.matchingVCs.entries.forEach { entry ->
                     val key = entry.key
-                    val vcList = entry.value
+                    val vcList = entry.value // Now List<VCWithFormat>
 
-                    items(vcList) { vc ->
-                        val vcItem = key to vc
+                    items(vcList) { vcWithFormat ->
+                        val vcItem = key to vcWithFormat
                         val isSelected = selectedItems.contains(vcItem)
 
-                        val typeLabel = runCatching {
-                            val credential = vc.getAsJsonObject("verifiableCredential")
-                                ?.getAsJsonObject("credential")
-
-                            val typeArray = credential?.getAsJsonArray("type")
-                            if (typeArray != null && typeArray.size() > 1) {
-                                typeArray[1].asString
-                            } else {
-                                "Unnamed"
-                            }
-                        }.getOrElse {
+                        val typeArray = vcWithFormat.vc.getAsJsonArray("type")
+                        val typeLabel = if (typeArray != null && typeArray.size() > 1) {
+                            typeArray[1].asString
+                        } else if (typeArray != null && typeArray.size() == 1) {
+                            typeArray[0].asString
+                        } else {
                             "Unnamed"
                         }
+
 
                         Card(
                             modifier = Modifier
@@ -168,7 +159,6 @@ fun MatchingCredentialsScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -176,18 +166,13 @@ fun MatchingCredentialsScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Button(
-                onClick = {
-                        showConsentDialog = true
-
-              },
+                onClick = { showConsentDialog = true },
                 enabled = selectedItems.isNotEmpty()
             ) {
                 Text("Share")
             }
 
             Spacer(modifier = Modifier.height(8.dp))
-
-
 
             TextButton(onClick = {
                 handleDecline(coroutineScope) {
@@ -199,10 +184,9 @@ fun MatchingCredentialsScreen(
         }
     }
 
-
     if (showConsentDialog) {
         AlertDialog(
-            onDismissRequest = { showConsentDialog = false},
+            onDismissRequest = { showConsentDialog = false },
             title = { Text("Consent Required") },
             text = { Text("Do you want to share selected credentials?") },
             confirmButton = {
@@ -237,7 +221,6 @@ fun MatchingCredentialsScreen(
                     handleDecline(coroutineScope) {
                         showDeclineConfirmationDialog = false
                         navController.popBackStack(Screen.Share.route, inclusive = false)
-
                     }
                 }) {
                     Text("Yes")
@@ -255,6 +238,9 @@ fun MatchingCredentialsScreen(
     }
 }
 
+
+
+
 fun handleDecline(
     coroutineScope: CoroutineScope,
     onDeclineConfirmed: () -> Unit
@@ -267,7 +253,7 @@ fun handleDecline(
     }
 }
 
-suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, JsonObject>>) = withContext(Dispatchers.IO) {
+suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>) = withContext(Dispatchers.IO) {
 
     val parsedSelectedItems = OVPHelper().buildSelectedVCsMapPlain(selectedItems)
 

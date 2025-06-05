@@ -12,7 +12,8 @@ import io.mosip.openID4VP.authorizationRequest.Verifier
 import io.mosip.sampleapp.MatchResult
 import io.mosip.sampleapp.data.repository.AllPropertiesRepository
 import io.mosip.sampleapp.data.repository.VerifierRepository
-import io.mosip.sampleapp.vc.SampleVcJson
+import io.mosip.sampleapp.vc.HardcodedVC
+import io.mosip.sampleapp.vc.VCWithFormat
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -20,16 +21,16 @@ import kotlinx.coroutines.launch
 class SharedViewModel : ViewModel() {
 
     val issuersList = listOf(
-        "Download Mosip" to SampleVcJson.get(0),
-        "Download Insurance" to SampleVcJson.get(1),
-        "Download Mock" to SampleVcJson.get(2)
+        "Download Mosip" to HardcodedVC.get(0),
+        "Download Insurance" to HardcodedVC.get(1),
+        "Download Mock" to HardcodedVC.get(2)
     )
 
 
-    private val _downloadedVcs = mutableStateListOf<JsonObject>()
-    val downloadedVcs: List<JsonObject> get() = _downloadedVcs
+    private val _downloadedVcs = mutableStateListOf<VCWithFormat>()
+    val downloadedVcs: List<VCWithFormat> get() = _downloadedVcs
 
-    fun addVC(item: JsonObject) {
+    fun addVC(item: VCWithFormat) {
         _downloadedVcs.add(item)
     }
 
@@ -44,9 +45,6 @@ class SharedViewModel : ViewModel() {
         scannedQr = data
     }
 
-
-
-
     private val _matchResult = MutableStateFlow<MatchResult?>(null)
     val matchResult: StateFlow<io.mosip.sampleapp.MatchResult?> = _matchResult
 
@@ -56,9 +54,6 @@ class SharedViewModel : ViewModel() {
         }
     }
 
-
-
-
     var vcSelectedForDetails : JsonObject? = null
         private set
 
@@ -66,18 +61,11 @@ class SharedViewModel : ViewModel() {
         vcSelectedForDetails = item
     }
 
-
-
-
-
-
     private val repository = VerifierRepository()
 
-    // Store verifiers as Gson JsonObjects first
     var verifiersJson by mutableStateOf<List<JsonObject>>(emptyList())
         private set
 
-    // Store mapped domain model list for easy usage in UI
     var verifiers by mutableStateOf<List<Verifier>>(emptyList())
         private set
 
@@ -108,6 +96,25 @@ class SharedViewModel : ViewModel() {
             allProperties = result
         }
     }
+
+    fun createMatchResultFromJson(
+        matchingVCsJson: Map<String, List<JsonObject>>,
+        requestedClaims: String,
+        purpose: String
+    ): MatchResult {
+        val matchingVCsWithFormat = matchingVCsJson.mapValues { entry ->
+            entry.value.map { vcJson ->
+                // Try to extract format from vcJson if available, else default to "unknown"
+                val format = runCatching {
+                    vcJson.get("format")?.asString ?: "unknown"
+                }.getOrElse { "unknown" }
+
+                VCWithFormat(format, vcJson)
+            }
+        }
+        return MatchResult(matchingVCsWithFormat, requestedClaims, purpose)
+    }
+
 
 }
 

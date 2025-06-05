@@ -3,7 +3,7 @@ package io.mosip.sampleapp.vc
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 
-object SampleVcJson {
+object HardcodedVC {
     const val MOSIP_VC = """
 {
     "@context": [
@@ -313,12 +313,17 @@ object SampleVcJson {
 }
     """
 
-    fun get(index: Int): JsonObject {
+    fun get(index: Int): VCWithFormat {
         val gson = Gson()
         return when (index) {
-            0 -> gson.fromJson(MOSIP_VC, JsonObject::class.java)
-            1 -> gson.fromJson(INSURANCE_VC, JsonObject::class.java)
-            else -> gson.fromJson(MOCK_VC, JsonObject::class.java)
+            0 -> VCWithFormat("ldp_vc", gson.fromJson(MOSIP_VC, JsonObject::class.java))
+            1 -> VCWithFormat("ldp_vc", gson.fromJson(INSURANCE_VC, JsonObject::class.java))
+            else -> VCWithFormat("ldp_vc", gson.fromJson(MOCK_VC, JsonObject::class.java))
         }
     }
 }
+
+data class VCWithFormat(
+    val format: String,
+    val vc: JsonObject
+)

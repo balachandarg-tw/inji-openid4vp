@@ -8,20 +8,24 @@ import com.google.gson.JsonObject
 import com.jayway.jsonpath.JsonPath
 import io.mosip.openID4VP.authorizationRequest.WalletMetadata
 import io.mosip.openID4VP.constants.FormatType
+import io.mosip.sampleapp.vc.VCWithFormat
 
 
 class OVPHelper {
     fun getVcsMatchingAuthRequest(
-        vcJsonList: List<JsonObject>,
+        vcList: List<VCWithFormat>,
         authRequest: JsonObject
     ): MatchResult {
-        val matchingVCs = mutableMapOf<String, MutableList<JsonObject>>()
+        val matchingVCs = mutableMapOf<String, MutableList<VCWithFormat>>()
         val requestedClaims = mutableSetOf<String>()
         val presentationDefinition = authRequest.getAsJsonObject("presentationDefinition")
         val inputDescriptors = presentationDefinition.getAsJsonArray("inputDescriptors")
         var hasFormatOrConstraints = false
 
-        for (vc in vcJsonList) {
+        for (vcWithFormat in vcList) {
+            val vc = vcWithFormat.vc
+            val vcFormat = vcWithFormat.format
+
             for (i in 0 until inputDescriptors.size()) {
                 val inputDescriptor = inputDescriptors[i].asJsonObject
                 val format = inputDescriptor.getAsJsonObject("format")
@@ -32,7 +36,7 @@ class OVPHelper {
                         format != null || (constraints?.has("fields") == true)
 
                 val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vc)
-                 val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
+                val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
 
                 val shouldInclude = if (constraints?.has("fields") == true && format != null) {
                     matchesFormat && matchesConstraints
@@ -43,27 +47,19 @@ class OVPHelper {
                 if (shouldInclude) {
                     val descriptorId = inputDescriptor.get("id").asString
 
-                    val credentialWrapper = JsonObject().apply {
-                        add("credential", vc.deepCopy())
-                    }
-
-                    val verifiableCredentialWrapper = JsonObject().apply {
-                        add("verifiableCredential", credentialWrapper)
-                        addProperty("format", "ldp_vc")
-                    }
-
                     val list = matchingVCs.getOrPut(descriptorId) { mutableListOf() }
-                    if (verifiableCredentialWrapper !in list) {
-                        list.add(verifiableCredentialWrapper)
+
+                    // Add VCWithFormat if not already in list
+                    if (list.none { it.vc == vc && it.format == vcFormat }) {
+                        list.add(VCWithFormat(vcFormat, vc.deepCopy()))
                     }
                 }
-
             }
         }
 
         if (!hasFormatOrConstraints && inputDescriptors.size() > 0) {
             val fallbackId = inputDescriptors[0].asJsonObject.get("id").asString
-            matchingVCs[fallbackId] = vcJsonList.toMutableList()
+            matchingVCs[fallbackId] = vcList.map { VCWithFormat(it.format, it.vc.deepCopy()) }.toMutableList()
         }
 
         return MatchResult(
@@ -72,6 +68,37 @@ class OVPHelper {
             presentationDefinition.get("purpose")?.asString ?: ""
         )
     }
+
+
+    fun buildSelectedVCsMapPlain(
+        selectedItems: List<Pair<String, VCWithFormat>>
+    ): Map<String, Map<FormatType, List<String>>> {
+        val result = mutableMapOf<String, MutableMap<FormatType, MutableList<String>>>()
+        val gson = Gson()
+
+        for ((inputDescriptorId, vcWithFormat) in selectedItems) {
+            val formatType = try {
+                FormatType.valueOf(vcWithFormat.format.uppercase().replace("-", "_"))
+            } catch (e: IllegalArgumentException) {
+                continue
+            }
+
+            val credential = vcWithFormat.vc
+
+            val credentialJson = gson.toJson(credential)
+
+            val formatMap = result.getOrPut(inputDescriptorId) { mutableMapOf() }
+            val credentialList = formatMap.getOrPut(formatType) { mutableListOf() }
+
+            credentialList.add(credentialJson)
+        }
+
+        return result.mapValues { (_, innerMap) ->
+            innerMap.mapValues { (_, list) -> list.toList() }
+        }
+    }
+
+
 
     private fun areVCFormatAndProofTypeMatchingRequest(format: JsonObject?, vc: JsonObject): Boolean {
         if (format == null) return false
@@ -112,12 +139,6 @@ class OVPHelper {
             val fieldMatched = paths.any { pathElem ->
                 val jsonPath = pathElem.asString
 
-                // Extract claim name for debug/tracking
-                val claimName = Regex("\\['([^']+)']").replace(jsonPath, ".$1")
-                    .split('.')
-                    .lastOrNull { it.isNotEmpty() && it != "$" } ?: ""
-                requestedClaims.add(claimName)
-
                 try {
                     val resultList = JsonPath.read<Any>(processedCredential.toString(), jsonPath)
 
@@ -146,12 +167,16 @@ class OVPHelper {
             }
 
             if (!fieldMatched) return false
+
+            // Add claim only if matched
+            val claimName = Regex("\\['([^']+)']").replace(paths.first().asString, ".$1")
+                .split('.')
+                .lastOrNull { it.isNotEmpty() && it != "$" } ?: ""
+            requestedClaims.add(claimName)
         }
 
         return true
     }
-
-
 
     private fun fetchCredentialBasedOnFormat(vc: JsonObject): JsonObject? {
         val format = vc.get("format")?.asString ?: "ldp_vc"
@@ -189,42 +214,11 @@ class OVPHelper {
 
         return processedData
     }
-
-    fun buildSelectedVCsMapPlain(
-        selectedItems: List<Pair<String, JsonObject>>
-    ): Map<String, Map<FormatType, List<String>>> {
-        val result = mutableMapOf<String, MutableMap<FormatType, MutableList<String>>>()
-        val gson = Gson()
-
-        for ((inputDescriptorId, vcObject) in selectedItems) {
-            val formatString = vcObject.get("format")?.asString ?: continue
-            val formatType = try {
-                FormatType.valueOf(formatString.uppercase().replace("-", "_"))
-            } catch (e: IllegalArgumentException) {
-                continue
-            }
-
-            val credential = vcObject.getAsJsonObject("verifiableCredential")?.getAsJsonObject("credential") ?: continue
-
-            val credentialWrapper = JsonObject().apply {
-                add("credential", credential)
-            }
-
-            val credentialJson = gson.toJson(credentialWrapper)
-
-            val formatMap = result.getOrPut(inputDescriptorId) { mutableMapOf() }
-            val credentialList = formatMap.getOrPut(formatType) { mutableListOf() }
-
-            credentialList.add(credentialJson)
-        }
-
-        return result
-    }
-
 }
 
+
 data class MatchResult(
-    val matchingVCs: Map<String, List<JsonObject>>,
+    val matchingVCs: Map<String, List<VCWithFormat>>,
     val requestedClaims: String,
     val purpose: String
 )

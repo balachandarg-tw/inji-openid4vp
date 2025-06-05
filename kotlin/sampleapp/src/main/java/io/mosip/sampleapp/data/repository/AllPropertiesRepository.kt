@@ -1,6 +1,5 @@
 package io.mosip.sampleapp.data.repository
 
-import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import io.mosip.sampleapp.data.network.NetworkHelper
 

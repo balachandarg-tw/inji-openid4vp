@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.data.SharedViewModel
+import io.mosip.sampleapp.vc.VCWithFormat
 
 @Composable
 fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
@@ -42,6 +43,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.loadAllProperties()
+        viewModel.loadVerifiers()
     }
 
     val downloadedVcs = viewModel.downloadedVcs
@@ -64,7 +66,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                viewModel.displayVcDetails(jsonObj)
+                                viewModel.displayVcDetails(jsonObj.vc)
                                 navController.navigate(Screen.Details.route)
                             }
                     ) {
@@ -75,7 +77,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            val typeArray = jsonObj.getAsJsonArray("type")
+                            val typeArray = jsonObj.vc.getAsJsonArray("type")
                             val typeLabel = if (typeArray != null && typeArray.size() > 1) {
                                 typeArray[1].asString
                             } else "-"
@@ -118,7 +120,9 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                         ExtendedFloatingActionButton(
                             text = { Text(label) },
                             onClick = {
-                                viewModel.addVC(credential.deepCopy())
+                                val copiedVc = credential.vc.deepCopy().asJsonObject
+                                val format = credential.format
+                                viewModel.addVC(VCWithFormat(format, copiedVc))
                                 showFabMenu = false
                             },
                             modifier = Modifier.padding(bottom = 8.dp)
