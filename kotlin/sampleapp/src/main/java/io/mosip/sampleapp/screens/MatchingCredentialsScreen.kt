@@ -42,8 +42,11 @@ import androidx.navigation.NavHostController
 import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
+import io.mosip.openID4VP.authorizationResponse.unsignedVPToken.types.mdoc.UnsignedMdocVPToken
 import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.VPTokenSigningResult
 import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.ldp.LdpVPTokenSigningResult
+import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.mdoc.DeviceAuthentication
+import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.mdoc.MdocVPTokenSigningResult
 import io.mosip.openID4VP.constants.FormatType
 import io.mosip.sampleapp.Constants
 import io.mosip.sampleapp.KeyType
@@ -263,53 +266,51 @@ fun handleDecline(
 }
 
 suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>) = withContext(Dispatchers.IO) {
-
     val parsedSelectedItems = OVPHelper().buildSelectedVCsMapPlain(selectedItems)
-
     val inputMap = mapOf("org.iso.18013.5.1.mDL" to mapOf(FormatType.MSO_MDOC to listOf(HardcodedVC.MDOC_BASE64_URL)))
-
     val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(inputMap)
 
-    //UnsignedVpToken => {FormatType@38852} MSO_MDOC -> {UnsignedMdocVPToken@38853} UnsignedMdocVPToken(docTypeToDeviceAuthenticationBytes={org.iso.18013.5.1.mDL=d8185892847444657669636541757468656e7469636174696f6e83f6f6835820d298d23789c15c89111cc4025e30e51640d3b69692182e2d74d5505823e2977a5820ebcf0abbe96e1f7cec56cd1537ff42cdd9a8f27b47c26c14961d0eaf1fb52d9a7818644262676c32674f506151584d5a4c7a7033344a74673d3d756f72672e69736f2e31383031332e352e312e6d444cd81841a0})
+//    // --- LDP_VC signing (as before) ---
+//    val ldpSigningResult = run {
+//        val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: return@run null
+//        val gson = Gson()
+//        val jsonElement = gson.toJsonTree(vpPayload)
+//        val mapPayload: Map<String, Any> = gson.fromJson(jsonElement, object : TypeToken<Map<String, Any>>() {}.type)
+//        val keyType = KeyType.RSA
+//        val keyPair = VPTokenSigner.generateKeyPair(keyType)
+//        val result: SignedVPJWT = VPTokenSigner.signVPToken(keyPair, keyType, mapPayload)
+//        LdpVPTokenSigningResult(
+//            jws = result.jwt,
+//            signatureAlgorithm = result.algorithm,
+//            publicKey = result.publicJWK,
+//            domain = "OpenID4VP"
+//        )
+//    }
 
-    //Sign
-//        - Iterate Map
-//                - d8185892847444657669636541757468656e7469636174696f6e83f6f6835820d298d23789c15c89111cc4025e30e51640d3b69692182e2d74d5505823e2977a5820ebcf0abbe96e1f7cec56cd1537ff42cdd9a8f27b47c26c14961d0eaf1fb52d9a7818644262676c32674f506151584d5a4c7a7033344a74673d3d756f72672e69736f2e31383031332e352e312e6d444cd81841a0 - payload.
-//        - Sign => Signature Algorithm (from VC)
-//        - Private key => Convert to required format
-//
-//
-//        Result
-//        => Signed Data
-
-
-
-    val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: run {
-        println("No LDP_VC payload found")
-        return@withContext
+    // --- MSO_MDOC signing ---
+    val mdocSigningResult = run {
+        val mdocPayload = unsignedVpTokenMap[FormatType.MSO_MDOC] as UnsignedMdocVPToken ?: return@run null
+        val docTypeToDeviceAuthenticationBytes = mdocPayload.docTypeToDeviceAuthenticationBytes
+        val keyType = KeyType.ES256
+        val keyPair = VPTokenSigner.generateKeyPair(keyType)
+        val docTypeToDeviceAuthentication = docTypeToDeviceAuthenticationBytes.mapValues { (_, deviceAuthBytes) ->
+            // Convert hex string to ByteArray if needed
+            val bytes = if (deviceAuthBytes is String) {
+                deviceAuthBytes.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
+            } else deviceAuthBytes as ByteArray
+            val signed = VPTokenSigner.signDeviceAuthentication(keyPair, keyType, bytes)
+            val jwsParts = signed.jwt.split(".")
+            val signaturePart = if (jwsParts.size == 3) jwsParts[2] else signed.jwt
+            DeviceAuthentication(signature = signaturePart, algorithm = signed.algorithm)
+        }
+        MdocVPTokenSigningResult(docTypeToDeviceAuthentication)
     }
 
-    val gson = Gson()
-    val jsonElement = gson.toJsonTree(vpPayload)
-    val mapPayload: Map<String, Any> = gson.fromJson(
-        jsonElement,
-        object : TypeToken<Map<String, Any>>() {}.type
-    )
-
-    val keyType = KeyType.RSA
-    val keyPair = VPTokenSigner.generateKeyPair(keyType)
-    val result: SignedVPJWT = VPTokenSigner.signVPToken(keyPair, keyType, mapPayload)
-
-    val ldpSigningResult = LdpVPTokenSigningResult(
-        jws = result.jwt,
-        signatureAlgorithm = result.algorithm,
-        publicKey = result.publicJWK,
-        domain = "OpenID4VP"
-    )
-
-    val vpTokenSigningResultMap: Map<FormatType, VPTokenSigningResult> = mapOf(
-        FormatType.LDP_VC to ldpSigningResult
-    )
+    // --- Compose result map ---
+    val vpTokenSigningResultMap = buildMap<FormatType, VPTokenSigningResult> {
+      //  ldpSigningResult?.let { put(FormatType.LDP_VC, it) }
+        mdocSigningResult?.let { put(FormatType.MSO_MDOC, it) }
+    }
 
     try {
         val finalResponse = OpenID4VPManager.shareVerifiablePresentation(vpTokenSigningResultMap)
@@ -318,5 +319,3 @@ suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>)
         Log.e("VP_SHARE", "Error sharing VP", e)
     }
 }
-
-
