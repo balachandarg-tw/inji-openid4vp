@@ -35,7 +35,7 @@ class OVPHelper {
                 hasFormatOrConstraints = hasFormatOrConstraints ||
                         format != null || (constraints?.has("fields") == true)
 
-                val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vc)
+                val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vcWithFormat)
                 val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
 
                 val shouldInclude = if (constraints?.has("fields") == true && format != null) {
@@ -44,12 +44,11 @@ class OVPHelper {
                     matchesFormat || matchesConstraints
                 }
 
-                if (shouldInclude) {
+                if (matchesFormat) {
                     val descriptorId = inputDescriptor.get("id").asString
 
                     val list = matchingVCs.getOrPut(descriptorId) { mutableListOf() }
 
-                    // Add VCWithFormat if not already in list
                     if (list.none { it.vc == vc && it.format == vcFormat }) {
                         list.add(VCWithFormat(vcFormat, vc.deepCopy()))
                     }
@@ -100,18 +99,73 @@ class OVPHelper {
 
 
 
-    private fun areVCFormatAndProofTypeMatchingRequest(format: JsonObject?, vc: JsonObject): Boolean {
+    private fun areVCFormatAndProofTypeMatchingRequest(format: JsonObject?, vcWithFormat: VCWithFormat): Boolean {
         if (format == null) return false
 
-        val proof = vc.getAsJsonObject("proof") ?: return false
-        val proofType = proof.get("type")?.asString ?: ""
+        val vc = vcWithFormat.vc
+        val vcFormat = vcWithFormat.format
 
-        return format.entrySet().any { (type, element) ->
-            val inner = element?.asJsonObject
-            val acceptedProofs = inner?.getAsJsonArray("proof_type")?.mapNotNull { it.asString } ?: emptyList()
-            type == "ldp_vc" && acceptedProofs.contains(proofType)
+        return when (vcFormat) {
+            "ldp_vc" -> {
+                val proof = vc.getAsJsonObject("proof") ?: return false
+                val proofType = proof.get("type")?.asString ?: return false
+
+                format.entrySet().any { (type, value) ->
+                    type == vcFormat &&
+                            value.asJsonObject.getAsJsonArray("proof_type")
+                                ?.mapNotNull { it.asString }
+                                ?.contains(proofType) == true
+                }
+            }
+
+            "mso_mdoc" -> {
+                val issuerAuthArray = vc.getAsJsonObject("issuerSigned")
+                    ?.getAsJsonArray("issuerAuth") ?: return false
+
+                if (issuerAuthArray.size() < 3) return false
+
+                val issuerProofType = issuerAuthArray[0].asJsonObject["1"]?.asInt ?: return false
+                val issuerAlgorithm = getIssuerAuthenticationAlgorithmForMdocVC(issuerProofType)
+
+                val mdocAuth = issuerAuthArray[2].asJsonObject
+                val deviceAlgorithm = getMdocAuthenticationAlgorithm(mdocAuth)
+
+                format.entrySet().any { (type, value) ->
+                    type == vcFormat &&
+                            value.asJsonObject.getAsJsonArray("alg")?.mapNotNull { it.asString }?.let { algList ->
+                                listOf(issuerAlgorithm, deviceAlgorithm).all { algList.contains(it) }
+                            } == true
+                }
+            }
+
+            else -> false
         }
     }
+
+
+    private fun getIssuerAuthenticationAlgorithmForMdocVC(proofType: Int): String {
+        return when (proofType) {
+            -7 -> "ES256"
+            else -> ""
+        }
+    }
+
+    private fun getMdocAuthenticationAlgorithm(issuerAuth: JsonObject): String {
+        val deviceKey = issuerAuth.getAsJsonObject("deviceKeyInfo")?.getAsJsonObject("deviceKey") ?: return ""
+
+        val keyType = deviceKey["1"]?.asInt
+        val curve = deviceKey["-1"]?.asInt
+
+        return if (keyType == ProtectedAlgorithm.EC2 && curve == ProtectedCurve.P256) "ES256" else ""
+    }
+    private object ProtectedAlgorithm {
+        const val EC2 = 2
+    }
+
+    private object ProtectedCurve {
+        const val P256 = 1
+    }
+
 
     private fun isVCMatchingRequestConstraints(
         constraints: JsonObject?,

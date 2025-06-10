@@ -94,6 +94,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.0")
     implementation("com.nimbusds:nimbus-jose-jwt:9.31")
     implementation("com.google.crypto.tink:tink-android:1.6.1")
+    implementation("io.mosip:pixelpass-aar:0.6.0")
 
 
 

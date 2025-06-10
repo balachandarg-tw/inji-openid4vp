@@ -53,6 +53,7 @@ import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.SignedVPJWT
 import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
+import io.mosip.sampleapp.vc.HardcodedVC
 import io.mosip.sampleapp.vc.VCWithFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -110,13 +111,21 @@ fun MatchingCredentialsScreen(
                         val vcItem = key to vcWithFormat
                         val isSelected = selectedItems.contains(vcItem)
 
-                        val typeArray = vcWithFormat.vc.getAsJsonArray("type")
-                        val typeLabel = if (typeArray != null && typeArray.size() > 1) {
-                            typeArray[1].asString
-                        } else if (typeArray != null && typeArray.size() == 1) {
-                            typeArray[0].asString
-                        } else {
-                            "Unnamed"
+                        val typeLabel = when (vcWithFormat.format) {
+                            FormatType.LDP_VC.value -> {
+                                val typeArray = vcWithFormat.vc.getAsJsonArray("type")
+                                if (typeArray != null && typeArray.size() > 1) {
+                                    typeArray[1].asString
+                                } else {
+                                    "-"
+                                }
+                            }
+
+                            FormatType.MSO_MDOC.value -> {
+                                "MDL Driving License"
+                            }
+
+                            else -> "-"
                         }
 
 
@@ -257,7 +266,24 @@ suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>)
 
     val parsedSelectedItems = OVPHelper().buildSelectedVCsMapPlain(selectedItems)
 
-    val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(parsedSelectedItems)
+    val inputMap = mapOf("org.iso.18013.5.1.mDL" to mapOf(FormatType.MSO_MDOC to listOf(HardcodedVC.MDOC_BASE64_URL)))
+
+    val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(inputMap)
+
+    //UnsignedVpToken => {FormatType@38852} MSO_MDOC -> {UnsignedMdocVPToken@38853} UnsignedMdocVPToken(docTypeToDeviceAuthenticationBytes={org.iso.18013.5.1.mDL=d8185892847444657669636541757468656e7469636174696f6e83f6f6835820d298d23789c15c89111cc4025e30e51640d3b69692182e2d74d5505823e2977a5820ebcf0abbe96e1f7cec56cd1537ff42cdd9a8f27b47c26c14961d0eaf1fb52d9a7818644262676c32674f506151584d5a4c7a7033344a74673d3d756f72672e69736f2e31383031332e352e312e6d444cd81841a0})
+
+    //Sign
+//        - Iterate Map
+//                - d8185892847444657669636541757468656e7469636174696f6e83f6f6835820d298d23789c15c89111cc4025e30e51640d3b69692182e2d74d5505823e2977a5820ebcf0abbe96e1f7cec56cd1537ff42cdd9a8f27b47c26c14961d0eaf1fb52d9a7818644262676c32674f506151584d5a4c7a7033344a74673d3d756f72672e69736f2e31383031332e352e312e6d444cd81841a0 - payload.
+//        - Sign => Signature Algorithm (from VC)
+//        - Private key => Convert to required format
+//
+//
+//        Result
+//        => Signed Data
+
+
+
     val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: run {
         println("No LDP_VC payload found")
         return@withContext
