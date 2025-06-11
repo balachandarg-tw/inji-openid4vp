@@ -49,9 +49,9 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import io.mosip.sampleapp.Constants
-import io.mosip.sampleapp.OVPHelper
-import io.mosip.sampleapp.OpenID4VPManager
+import io.mosip.sampleapp.utils.OpenID4VPManager
 import io.mosip.sampleapp.data.SharedViewModel
+import io.mosip.sampleapp.utils.MatchingVcsHelper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -275,7 +275,7 @@ suspend fun handleScannedText(
         val downloadedVcs = sharedViewModel.downloadedVcs
         val authRequestJson: JsonObject = gson.toJsonTree(authorizationRequest).asJsonObject
 
-        val matchingVcsResult = OVPHelper().getVcsMatchingAuthRequest(downloadedVcs, authRequestJson)
+        val matchingVcsResult = MatchingVcsHelper().getVcsMatchingAuthRequest(downloadedVcs, authRequestJson)
 
         sharedViewModel.storeMatchResult(matchingVcsResult)
 

@@ -1,6 +1,5 @@
 package io.mosip.sampleapp.screens
 
-import android.util.Log
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -32,32 +31,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import com.google.gson.Gson
-import com.google.gson.JsonObject
-import com.google.gson.reflect.TypeToken
-import io.mosip.openID4VP.authorizationResponse.unsignedVPToken.types.mdoc.UnsignedMdocVPToken
-import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.VPTokenSigningResult
-import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.ldp.LdpVPTokenSigningResult
-import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.mdoc.DeviceAuthentication
-import io.mosip.openID4VP.authorizationResponse.vpTokenSigningResult.types.mdoc.MdocVPTokenSigningResult
 import io.mosip.openID4VP.constants.FormatType
 import io.mosip.sampleapp.Constants
-import io.mosip.sampleapp.KeyType
-import io.mosip.sampleapp.OVPHelper
-import io.mosip.sampleapp.OpenID4VPManager
+import io.mosip.sampleapp.utils.OpenID4VPManager
+import io.mosip.sampleapp.utils.OpenID4VPManager.shareVerifiablePresentation
 import io.mosip.sampleapp.Screen
-import io.mosip.sampleapp.SignedVPJWT
-import io.mosip.sampleapp.VPTokenSigner
 import io.mosip.sampleapp.data.SharedViewModel
-import io.mosip.sampleapp.vc.HardcodedVC
-import io.mosip.sampleapp.vc.VCWithFormat
+import io.mosip.sampleapp.VCWithFormat
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -68,7 +54,7 @@ fun MatchingCredentialsScreen(
     sharedViewModel: SharedViewModel,
     navController: NavHostController
 ) {
-    val matchResult by sharedViewModel.matchResult.collectAsState()
+    val matchResult by sharedViewModel.matchingResult.collectAsState()
     val selectedItems = remember { mutableStateListOf<Pair<String, VCWithFormat>>() }
 
     var showConsentDialog by remember { mutableStateOf(false) }
@@ -205,7 +191,7 @@ fun MatchingCredentialsScreen(
                 TextButton(onClick = {
                     showConsentDialog = false
                     coroutineScope.launch {
-                        sendVP(selectedItems)
+                        shareVerifiablePresentation(selectedItems)
                     }
                     navController.navigate(Screen.Success.route)
                 }) {
@@ -265,58 +251,4 @@ fun handleDecline(
     }
 }
 
-suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>) = withContext(Dispatchers.IO) {
-    val parsedSelectedItems = OVPHelper().buildSelectedVCsMapPlain(selectedItems)
 
-    val inputMap = mapOf("org.iso.18013.5.1.mDL" to mapOf(FormatType.MSO_MDOC to listOf(HardcodedVC.MDOC_BASE64_URL)))
-    val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(parsedSelectedItems)
-
-    // --- LDP_VC signing (as before) ---
-    val ldpSigningResult = run {
-        val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: return@run null
-        val gson = Gson()
-        val jsonElement = gson.toJsonTree(vpPayload)
-        val mapPayload: Map<String, Any> = gson.fromJson(jsonElement, object : TypeToken<Map<String, Any>>() {}.type)
-        val keyType = KeyType.RSA
-        val keyPair = VPTokenSigner.generateKeyPair(keyType)
-        val result: SignedVPJWT = VPTokenSigner.signVPToken(keyPair, keyType, mapPayload)
-        LdpVPTokenSigningResult(
-            jws = result.jwt,
-            signatureAlgorithm = result.algorithm,
-            publicKey = result.publicJWK,
-            domain = "OpenID4VP"
-        )
-    }
-
-    // --- MSO_MDOC signing ---
-    val mdocSigningResult = run {
-        val mdocPayload = unsignedVpTokenMap[FormatType.MSO_MDOC] as UnsignedMdocVPToken ?: return@run null
-        val docTypeToDeviceAuthenticationBytes = mdocPayload.docTypeToDeviceAuthenticationBytes
-        val keyType = KeyType.ES256
-        val keyPair = VPTokenSigner.generateKeyPair(keyType)
-        val docTypeToDeviceAuthentication = docTypeToDeviceAuthenticationBytes.mapValues { (_, deviceAuthBytes) ->
-            // Convert hex string to ByteArray if needed
-            val bytes = if (deviceAuthBytes is String) {
-                deviceAuthBytes.chunked(2).map { it.toInt(16).toByte() }.toByteArray()
-            } else deviceAuthBytes as ByteArray
-            val signed = VPTokenSigner.signDeviceAuthentication(keyPair, keyType, bytes)
-            val jwsParts = signed.jwt.split(".")
-            val signaturePart = if (jwsParts.size == 3) jwsParts[2] else signed.jwt
-            DeviceAuthentication(signature = signaturePart, algorithm = signed.algorithm)
-        }
-        MdocVPTokenSigningResult(docTypeToDeviceAuthentication)
-    }
-
-    // --- Compose result map ---
-    val vpTokenSigningResultMap = buildMap<FormatType, VPTokenSigningResult> {
-        ldpSigningResult?.let { put(FormatType.LDP_VC, it) }
-        mdocSigningResult?.let { put(FormatType.MSO_MDOC, it) }
-    }
-
-    try {
-        val finalResponse = OpenID4VPManager.shareVerifiablePresentation(vpTokenSigningResultMap)
-        Log.d("VP_SHARE", "######## $finalResponse")
-    } catch (e: Exception) {
-        Log.e("VP_SHARE", "Error sharing VP", e)
-    }
-}

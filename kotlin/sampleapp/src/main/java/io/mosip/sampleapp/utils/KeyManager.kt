@@ -1,4 +1,4 @@
-package io.mosip.sampleapp;
+package io.mosip.sampleapp.utils;
 
 import com.nimbusds.jose.*
 import com.nimbusds.jose.crypto.*
@@ -100,14 +100,13 @@ object VPTokenSigner {
         val signer = when (keyType) {
             KeyType.ES256 -> ECDSASigner(keyPair.private as ECPrivateKey)
             KeyType.RSA -> RSASSASigner(keyPair.private)
-            // Add other key types if needed
         }
         jwsObject.sign(signer)
 
         return SignedVPJWT(
             jwt = jwsObject.serialize(),
             algorithm = jwsObject.header.algorithm.name,
-            publicJWK = "" // Optionally, serialize public key as JWK if needed
+            publicJWK = ""
         )
     }
 }

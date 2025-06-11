@@ -1,4 +1,4 @@
-package io.mosip.sampleapp.vc
+package io.mosip.sampleapp
 
 import com.google.gson.Gson
 import com.google.gson.JsonObject
@@ -325,7 +325,7 @@ object HardcodedVC {
             1 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(INSURANCE_VC, JsonObject::class.java))
             2 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(MOCK_VC, JsonObject::class.java))
             else -> {
-                val rawMdoc = PixelPass().toJson(HardcodedVC.MDOC_BASE64_URL)
+                val rawMdoc = PixelPass().toJson(MDOC_BASE64_URL)
                 val jsonString = when (rawMdoc) {
                     is JSONObject -> rawMdoc.toString()
                     is String -> rawMdoc
