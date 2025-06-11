@@ -30,12 +30,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import io.mosip.openID4VP.constants.FormatType
+import io.mosip.sampleapp.R
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.VCWithFormat
+import io.mosip.sampleapp.utils.Utils.getDisplayLabel
 
 @Composable
 fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
@@ -52,7 +55,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
     Box(Modifier.fillMaxSize()) {
         if (downloadedVcs.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
-                Text("No VCs downloaded. Tap + icon to download VCs")
+                Text(stringResource(R.string.no_vcs_downloaded_tap_icon_to_download_vcs))
             }
         } else {
             LazyColumn(
@@ -79,25 +82,8 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
 
-                            val typeLabel = when (jsonObj.format) {
-                                FormatType.LDP_VC.value -> {
-                                    val typeArray = jsonObj.vc.getAsJsonArray("type")
-                                    if (typeArray != null && typeArray.size() > 1) {
-                                        typeArray[1].asString
-                                    } else {
-                                        "-"
-                                    }
-                                }
-
-                                FormatType.MSO_MDOC.value -> {
-                                    "MDL Driving License"
-                                }
-
-                                else -> "-"
-                            }
-
                             Text(
-                                text = typeLabel,
+                                text = getDisplayLabel(jsonObj).orEmpty(),
                                 style = MaterialTheme.typography.body1
                             )
 
@@ -117,7 +103,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                                         viewModel.removeVC(index)
                                         expandedRowIndex = null
                                     }) {
-                                        Text("Delete")
+                                        Text(stringResource(R.string.delete))
                                     }
                                 }
                             }

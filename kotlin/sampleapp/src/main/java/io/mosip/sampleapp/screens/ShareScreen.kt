@@ -35,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -49,6 +50,7 @@ import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import io.mosip.sampleapp.Constants
+import io.mosip.sampleapp.R
 import io.mosip.sampleapp.utils.OpenID4VPManager
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.utils.MatchingVcsHelper
@@ -233,19 +235,19 @@ fun ErrorOverlay(onDismiss: () -> Unit) {
                 .fillMaxWidth()
         ) {
             Text(
-                text = "Invalid QR Code",
+                text = stringResource(R.string.invalid_qr_code),
                 style = MaterialTheme.typography.h5,
                 color = Color.Red
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(
-                text = "No matching credential found for the scanned QR code.",
+                text = stringResource(R.string.no_matching_credential_found_for_the_scanned_qr_code),
                 style = MaterialTheme.typography.body1,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(24.dp))
             Button(onClick = onDismiss) {
-                Text("OK")
+                Text(stringResource(R.string.ok))
             }
         }
     }

@@ -34,16 +34,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
-import io.mosip.openID4VP.constants.FormatType
 import io.mosip.sampleapp.Constants
+import io.mosip.sampleapp.R
 import io.mosip.sampleapp.utils.OpenID4VPManager
 import io.mosip.sampleapp.utils.OpenID4VPManager.shareVerifiablePresentation
 import io.mosip.sampleapp.Screen
 import io.mosip.sampleapp.data.SharedViewModel
 import io.mosip.sampleapp.VCWithFormat
+import io.mosip.sampleapp.utils.Utils.getDisplayLabel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,40 +84,23 @@ fun MatchingCredentialsScreen(
             }
         }
 
-        Text("Requested Claims: ${matchResult?.requestedClaims ?: "N/A"}", style = MaterialTheme.typography.body1)
+        Text(stringResource(R.string.requested_claims, matchResult?.requestedClaims ?: "N/A"), style = MaterialTheme.typography.body1)
         Spacer(modifier = Modifier.height(4.dp))
         Text("Purpose: ${matchResult?.purpose ?: "N/A"}", style = MaterialTheme.typography.body2)
         Spacer(modifier = Modifier.height(16.dp))
 
-        Text("Matching Credentials:", style = MaterialTheme.typography.h6)
+        Text(stringResource(R.string.matching_credentials), style = MaterialTheme.typography.h6)
         Spacer(modifier = Modifier.height(8.dp))
 
         if (matchResult?.matchingVCs?.isNotEmpty() == true) {
             LazyColumn(modifier = Modifier.weight(1f)) {
                 matchResult!!.matchingVCs.entries.forEach { entry ->
                     val key = entry.key
-                    val vcList = entry.value // Now List<VCWithFormat>
+                    val vcList = entry.value
 
                     items(vcList) { vcWithFormat ->
                         val vcItem = key to vcWithFormat
                         val isSelected = selectedItems.contains(vcItem)
-
-                        val typeLabel = when (vcWithFormat.format) {
-                            FormatType.LDP_VC.value -> {
-                                val typeArray = vcWithFormat.vc.getAsJsonArray("type")
-                                if (typeArray != null && typeArray.size() > 1) {
-                                    typeArray[1].asString
-                                } else {
-                                    "-"
-                                }
-                            }
-
-                            FormatType.MSO_MDOC.value -> {
-                                "MDL Driving License"
-                            }
-
-                            else -> "-"
-                        }
 
 
                         Card(
@@ -140,7 +125,7 @@ fun MatchingCredentialsScreen(
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = typeLabel,
+                                    text = getDisplayLabel(vcWithFormat).orEmpty(),
                                     style = MaterialTheme.typography.body1,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
@@ -152,7 +137,7 @@ fun MatchingCredentialsScreen(
                 }
             }
         } else {
-            Text("No matching credentials found.", style = MaterialTheme.typography.body2)
+            Text(stringResource(R.string.no_matching_credentials_found), style = MaterialTheme.typography.body2)
         }
 
         Spacer(modifier = Modifier.height(16.dp))
@@ -177,7 +162,7 @@ fun MatchingCredentialsScreen(
                     navController.popBackStack(Screen.Share.route, inclusive = false)
                 }
             }) {
-                Text("Reject", color = Color.Red)
+                Text(stringResource(R.string.reject), color = Color.Red)
             }
         }
     }
@@ -185,8 +170,8 @@ fun MatchingCredentialsScreen(
     if (showConsentDialog) {
         AlertDialog(
             onDismissRequest = { showConsentDialog = false },
-            title = { Text("Consent Required") },
-            text = { Text("Do you want to share selected credentials?") },
+            title = { Text(stringResource(R.string.consent_required)) },
+            text = { Text(stringResource(R.string.do_you_want_to_share_selected_credentials)) },
             confirmButton = {
                 TextButton(onClick = {
                     showConsentDialog = false
@@ -195,7 +180,7 @@ fun MatchingCredentialsScreen(
                     }
                     navController.navigate(Screen.Success.route)
                 }) {
-                    Text("Yes, Proceed")
+                    Text(stringResource(R.string.yes_proceed))
                 }
             },
             dismissButton = {
@@ -203,7 +188,7 @@ fun MatchingCredentialsScreen(
                     showConsentDialog = false
                     showDeclineConfirmationDialog = true
                 }) {
-                    Text("Decline")
+                    Text(stringResource(R.string.decline))
                 }
             }
         )
@@ -212,8 +197,8 @@ fun MatchingCredentialsScreen(
     if (showDeclineConfirmationDialog) {
         AlertDialog(
             onDismissRequest = { showDeclineConfirmationDialog = false },
-            title = { Text("Are you sure?") },
-            text = { Text("Do you want to go back to scanning?") },
+            title = { Text(stringResource(R.string.are_you_sure)) },
+            text = { Text(stringResource(R.string.do_you_want_to_go_back_to_scanning)) },
             confirmButton = {
                 TextButton(onClick = {
                     handleDecline(coroutineScope) {
@@ -221,7 +206,7 @@ fun MatchingCredentialsScreen(
                         navController.popBackStack(Screen.Share.route, inclusive = false)
                     }
                 }) {
-                    Text("Yes")
+                    Text(stringResource(R.string.yes))
                 }
             },
             dismissButton = {
@@ -229,14 +214,12 @@ fun MatchingCredentialsScreen(
                     showDeclineConfirmationDialog = false
                     showConsentDialog = true
                 }) {
-                    Text("Go Back")
+                    Text(stringResource(R.string.go_back))
                 }
             }
         )
     }
 }
-
-
 
 
 fun handleDecline(

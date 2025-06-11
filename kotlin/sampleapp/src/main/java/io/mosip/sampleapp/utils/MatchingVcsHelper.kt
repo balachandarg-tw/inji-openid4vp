@@ -197,7 +197,6 @@ class MatchingVcsHelper {
 
             if (!fieldMatched) return false
 
-            // Add claim only if matched
             val claimName = Regex("\\['([^']+)']").replace(paths.first().asString, ".$1")
                 .split('.')
                 .lastOrNull { it.isNotEmpty() && it != "$" } ?: ""

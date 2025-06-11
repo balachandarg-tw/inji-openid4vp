@@ -1,8 +1,10 @@
 package io.mosip.sampleapp
 
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.AlertDialog
 import androidx.compose.material.BottomNavigation
 import androidx.compose.material.BottomNavigationItem
+import androidx.compose.material.Button
 import androidx.compose.material.Icon
 import androidx.compose.material.Scaffold
 import androidx.compose.material.Text
@@ -11,8 +13,11 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -32,21 +37,24 @@ sealed class Screen(val route: String) {
     object Success : Screen("success")
 }
 
+
+
 @Composable
 fun MainApp() {
     val navController = rememberNavController()
     val sharedViewModel = remember { SharedViewModel() }
+    var showNoVcDialog by remember { mutableStateOf(false) }
 
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
     Scaffold(
         bottomBar = {
-            if (currentRoute != Screen.Details.route && currentRoute != Screen.MatchingVcs.route &&  currentRoute != Screen.Success.route) {
+            if (currentRoute != Screen.Details.route && currentRoute != Screen.MatchingVcs.route && currentRoute != Screen.Success.route) {
                 BottomNavigation {
                     BottomNavigationItem(
                         icon = { Icon(Icons.Default.Home, contentDescription = null) },
-                        label = { Text("Home") },
+                        label = { Text(stringResource(R.string.home)) },
                         selected = currentRoute == Screen.Home.route,
                         onClick = {
                             navController.navigate(Screen.Home.route) {
@@ -56,11 +64,15 @@ fun MainApp() {
                     )
                     BottomNavigationItem(
                         icon = { Icon(Icons.Default.Share, contentDescription = null) },
-                        label = { Text("Share") },
+                        label = { Text(stringResource(R.string.share)) },
                         selected = currentRoute == Screen.Share.route,
                         onClick = {
-                            navController.navigate(Screen.Share.route) {
-                                launchSingleTop = true
+                            if (sharedViewModel.downloadedVcs.isEmpty()) {
+                                showNoVcDialog = true
+                            } else {
+                                navController.navigate(Screen.Share.route) {
+                                    launchSingleTop = true
+                                }
                             }
                         }
                     )
@@ -68,6 +80,19 @@ fun MainApp() {
             }
         }
     ) { innerPadding ->
+        if (showNoVcDialog) {
+            AlertDialog(
+                onDismissRequest = { showNoVcDialog = false },
+                title = { Text(stringResource(R.string.no_vc_to_share)) },
+                text = { Text(stringResource(R.string.no_verifiable_credential_found_to_share)) },
+                confirmButton = {
+                    Button(onClick = { showNoVcDialog = false }) {
+                        Text(stringResource(R.string.ok))
+                    }
+                }
+            )
+        }
+
         NavHost(
             navController,
             startDestination = Screen.Home.route,

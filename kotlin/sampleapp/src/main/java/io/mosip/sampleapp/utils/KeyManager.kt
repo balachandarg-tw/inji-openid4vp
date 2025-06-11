@@ -11,12 +11,10 @@ import java.security.*
 import java.security.interfaces.*
 import java.util.*
 
-// Enum for key types
 enum class KeyType {
     RSA, ES256
 }
 
-// Wrapper for result
 data class SignedVPJWT(
     val jwt: String,
     val publicJWK: String,
@@ -71,7 +69,7 @@ object VPTokenSigner {
         }
 
         val claimsSet = JWTClaimsSet.Builder()
-            .issuer("did:example:holder")
+            .issuer("did:jwk")
             .issueTime(Date())
             .claim("vp", vpPayload)
             .build()

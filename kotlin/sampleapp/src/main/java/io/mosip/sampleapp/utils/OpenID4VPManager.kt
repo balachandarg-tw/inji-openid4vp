@@ -84,7 +84,7 @@ object OpenID4VPManager {
 
         // MSO_MDOC signing
         val mdocSigningResult = run {
-            val mdocPayload = unsignedVpTokenMap[FormatType.MSO_MDOC] as UnsignedMdocVPToken ?: return@run null
+            val mdocPayload = unsignedVpTokenMap[FormatType.MSO_MDOC] as UnsignedMdocVPToken
             val docTypeToDeviceAuthenticationBytes = mdocPayload.docTypeToDeviceAuthenticationBytes
             val keyType = KeyType.ES256
             val keyPair = VPTokenSigner.generateKeyPair(keyType)
