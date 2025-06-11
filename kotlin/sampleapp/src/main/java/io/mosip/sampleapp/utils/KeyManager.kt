@@ -1,5 +1,6 @@
 package io.mosip.sampleapp.utils;
 
+import com.google.gson.JsonObject
 import com.nimbusds.jose.*
 import com.nimbusds.jose.crypto.*
 import com.nimbusds.jose.jwk.*
@@ -108,5 +109,30 @@ object VPTokenSigner {
             algorithm = jwsObject.header.algorithm.name,
             publicJWK = ""
         )
+    }
+}
+
+object MdocKeyManager {
+    fun getIssuerAuthenticationAlgorithmForMdocVC(proofType: Int): String {
+        return when (proofType) {
+            -7 -> "ES256"
+            else -> ""
+        }
+    }
+
+    fun getMdocAuthenticationAlgorithm(issuerAuth: JsonObject): String {
+        val deviceKey = issuerAuth.getAsJsonObject("deviceKeyInfo")?.getAsJsonObject("deviceKey") ?: return ""
+
+        val keyType = deviceKey["1"]?.asInt
+        val curve = deviceKey["-1"]?.asInt
+
+        return if (keyType == ProtectedAlgorithm.EC2 && curve == ProtectedCurve.P256) "ES256" else ""
+    }
+    private object ProtectedAlgorithm {
+        const val EC2 = 2
+    }
+
+    private object ProtectedCurve {
+        const val P256 = 1
     }
 }

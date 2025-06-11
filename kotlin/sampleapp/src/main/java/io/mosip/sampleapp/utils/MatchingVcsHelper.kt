@@ -5,6 +5,8 @@ import com.google.gson.JsonObject
 import com.jayway.jsonpath.JsonPath
 import io.mosip.openID4VP.constants.FormatType
 import io.mosip.sampleapp.VCWithFormat
+import io.mosip.sampleapp.utils.MdocKeyManager.getIssuerAuthenticationAlgorithmForMdocVC
+import io.mosip.sampleapp.utils.MdocKeyManager.getMdocAuthenticationAlgorithm
 
 class MatchingVcsHelper {
     fun getVcsMatchingAuthRequest(
@@ -46,7 +48,7 @@ class MatchingVcsHelper {
                     val list = matchingVCs.getOrPut(descriptorId) { mutableListOf() }
 
                     if (list.none { it.vc == vc && it.format == vcFormat }) {
-                        list.add(VCWithFormat(vcFormat, vc.deepCopy(), rawCBORData))
+                        list.add(VCWithFormat(vcFormat, vc.deepCopy(), vcWithFormat.keyType, rawCBORData))
                     }
                 }
             }
@@ -54,7 +56,7 @@ class MatchingVcsHelper {
 
         if (!hasFormatOrConstraints && inputDescriptors.size() > 0) {
             val fallbackId = inputDescriptors[0].asJsonObject.get("id").asString
-            matchingVCs[fallbackId] = vcList.map { VCWithFormat(it.format, it.vc.deepCopy(), it.rawCBORData) }.toMutableList()
+            matchingVCs[fallbackId] = vcList.map { VCWithFormat(it.format, it.vc.deepCopy(), it.keyType, it.rawCBORData) }.toMutableList()
         }
 
         return MatchingResult(
@@ -139,31 +141,6 @@ class MatchingVcsHelper {
             else -> false
         }
     }
-
-
-    private fun getIssuerAuthenticationAlgorithmForMdocVC(proofType: Int): String {
-        return when (proofType) {
-            -7 -> "ES256"
-            else -> ""
-        }
-    }
-
-    private fun getMdocAuthenticationAlgorithm(issuerAuth: JsonObject): String {
-        val deviceKey = issuerAuth.getAsJsonObject("deviceKeyInfo")?.getAsJsonObject("deviceKey") ?: return ""
-
-        val keyType = deviceKey["1"]?.asInt
-        val curve = deviceKey["-1"]?.asInt
-
-        return if (keyType == ProtectedAlgorithm.EC2 && curve == ProtectedCurve.P256) "ES256" else ""
-    }
-    private object ProtectedAlgorithm {
-        const val EC2 = 2
-    }
-
-    private object ProtectedCurve {
-        const val P256 = 1
-    }
-
 
     private fun isVCMatchingRequestConstraints(
         constraints: JsonObject?,

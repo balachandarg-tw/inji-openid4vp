@@ -98,24 +98,6 @@ class SharedViewModel : ViewModel() {
         }
     }
 
-    fun createMatchResultFromJson(
-        matchingVCsJson: Map<String, List<JsonObject>>,
-        requestedClaims: String,
-        purpose: String
-    ): MatchingResult {
-        val matchingVCsWithFormat = matchingVCsJson.mapValues { entry ->
-            entry.value.map { vcJson ->
-                // Try to extract format from vcJson if available, else default to "unknown"
-                val format = runCatching {
-                    vcJson.get("format")?.asString ?: "unknown"
-                }.getOrElse { "unknown" }
-
-                VCWithFormat(format, vcJson)
-            }
-        }
-        return MatchingResult(matchingVCsWithFormat, requestedClaims, purpose)
-    }
-
 
 }
 

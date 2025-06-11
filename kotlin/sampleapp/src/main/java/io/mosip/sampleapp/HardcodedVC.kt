@@ -4,6 +4,8 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import io.mosip.openID4VP.constants.FormatType
 import io.mosip.pixelpass.PixelPass
+import io.mosip.sampleapp.utils.KeyType
+import io.mosip.sampleapp.utils.MdocKeyManager
 import org.json.JSONObject
 
 object HardcodedVC {
@@ -321,9 +323,9 @@ object HardcodedVC {
     fun get(index: Int): VCWithFormat {
         val gson = Gson()
         return when (index) {
-            0 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(MOSIP_VC, JsonObject::class.java))
-            1 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(INSURANCE_VC, JsonObject::class.java))
-            2 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(MOCK_VC, JsonObject::class.java))
+            0 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(MOSIP_VC, JsonObject::class.java), KeyType.RSA.name)
+            1 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(INSURANCE_VC, JsonObject::class.java), KeyType.RSA.name)
+            2 -> VCWithFormat(FormatType.LDP_VC.value, gson.fromJson(MOCK_VC, JsonObject::class.java), KeyType.RSA.name)
             else -> {
                 val rawMdoc = PixelPass().toJson(MDOC_BASE64_URL)
                 val jsonString = when (rawMdoc) {
@@ -332,15 +334,29 @@ object HardcodedVC {
                     else -> gson.toJson(rawMdoc)
                 }
                 val mdocJsonObject = gson.fromJson(jsonString, JsonObject::class.java)
-                VCWithFormat(FormatType.MSO_MDOC.value, mdocJsonObject, MDOC_BASE64_URL)
+                val mdocKeyType = getKeyTypeForMdoc(mdocJsonObject)
+
+                VCWithFormat(FormatType.MSO_MDOC.value, mdocJsonObject, mdocKeyType, MDOC_BASE64_URL)
             }
         }
     }
-
 }
+
+fun getKeyTypeForMdoc(vc: JsonObject): String {
+    val issuerAuthArray = vc.getAsJsonObject("issuerSigned")
+        ?.getAsJsonArray("issuerAuth") ?: return ""
+
+    if (issuerAuthArray.size() < 3) return ""
+
+    val mdocAuth = issuerAuthArray[2].asJsonObject
+    return MdocKeyManager.getMdocAuthenticationAlgorithm(mdocAuth)
+}
+
+
 
 data class VCWithFormat(
     val format: String,
     val vc: JsonObject,
+    val keyType: String,
     val rawCBORData : String? = null
 )

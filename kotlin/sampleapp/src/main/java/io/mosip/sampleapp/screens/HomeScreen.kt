@@ -140,7 +140,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                             onClick = {
                                 val copiedVc = credential.vc.deepCopy().asJsonObject
                                 val format = credential.format
-                                viewModel.addVC(VCWithFormat(format, copiedVc, credential.rawCBORData))
+                                viewModel.addVC(VCWithFormat(format, copiedVc, credential.keyType, credential.rawCBORData))
                                 showFabMenu = false
                             },
                             modifier = Modifier.padding(bottom = 8.dp)
