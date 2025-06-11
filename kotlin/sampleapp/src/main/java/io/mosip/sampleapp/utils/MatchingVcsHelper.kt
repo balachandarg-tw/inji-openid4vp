@@ -34,7 +34,7 @@ class MatchingVcsHelper {
                         format != null || (constraints?.has("fields") == true)
 
                 val matchesFormat = areVCFormatAndProofTypeMatchingRequest(format, vcWithFormat)
-                val matchesConstraints = isVCMatchingRequestConstraints(constraints, vc, requestedClaims)
+                val matchesConstraints = isVCMatchingRequestConstraints(constraints, vcWithFormat, requestedClaims)
 
                 val shouldInclude = if (constraints?.has("fields") == true && format != null) {
                     matchesFormat && matchesConstraints
@@ -42,7 +42,7 @@ class MatchingVcsHelper {
                     matchesFormat || matchesConstraints
                 }
 
-                if (matchesFormat) {
+                if (shouldInclude) {
                     val descriptorId = inputDescriptor.get("id").asString
 
                     val list = matchingVCs.getOrPut(descriptorId) { mutableListOf() }
@@ -81,9 +81,9 @@ class MatchingVcsHelper {
             }
 
             val credentialValue = if (formatType == FormatType.MSO_MDOC) {
-                vcWithFormat.rawCBORData // Use rawCbor for mdoc
+                vcWithFormat.rawCBORData
             } else {
-                gson.toJson(vcWithFormat.vc) // Use JSON for others
+                gson.toJson(vcWithFormat.vc)
             }
 
             val formatMap = result.getOrPut(inputDescriptorId) { mutableMapOf() }
@@ -106,7 +106,7 @@ class MatchingVcsHelper {
         val vcFormat = vcWithFormat.format
 
         return when (vcFormat) {
-            "ldp_vc" -> {
+            FormatType.LDP_VC.value -> {
                 val proof = vc.getAsJsonObject("proof") ?: return false
                 val proofType = proof.get("type")?.asString ?: return false
 
@@ -118,7 +118,7 @@ class MatchingVcsHelper {
                 }
             }
 
-            "mso_mdoc" -> {
+            FormatType.MSO_MDOC.value -> {
                 val issuerAuthArray = vc.getAsJsonObject("issuerSigned")
                     ?.getAsJsonArray("issuerAuth") ?: return false
 
@@ -144,11 +144,11 @@ class MatchingVcsHelper {
 
     private fun isVCMatchingRequestConstraints(
         constraints: JsonObject?,
-        vc: JsonObject,
+        vcWithFormat: VCWithFormat,
         requestedClaims: MutableSet<String>
     ): Boolean {
         val fields = constraints?.getAsJsonArray("fields") ?: return false
-        val processedCredential = fetchCredentialBasedOnFormat(vc) ?: return false
+        val processedCredential = fetchCredentialBasedOnFormat(vcWithFormat) ?: return false
 
         fun getJsType(value: Any?): String = when (value) {
             is String -> "string"
@@ -207,15 +207,16 @@ class MatchingVcsHelper {
         return true
     }
 
-    private fun fetchCredentialBasedOnFormat(vc: JsonObject): JsonObject? {
-        val format = vc.get("format")?.asString ?: "ldp_vc"
-        val verifiableCredential = vc ?: return null
+
+
+    private fun fetchCredentialBasedOnFormat(vcwithFormat: VCWithFormat): JsonObject? {
+        val format = vcwithFormat.format
+        val verifiableCredential = vcwithFormat.vc ?: return null
 
         return when (format) {
-            "ldp_vc" -> verifiableCredential
-            "mso_mdoc" -> {
-                val processedCredential = verifiableCredential.getAsJsonObject("processedCredential") ?: return null
-                getProcessedDataForMdoc(processedCredential)
+            FormatType.LDP_VC.value -> verifiableCredential
+            FormatType.MSO_MDOC.value -> {
+                getProcessedDataForMdoc(verifiableCredential)
             }
             else -> null
         }
