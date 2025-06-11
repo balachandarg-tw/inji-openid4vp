@@ -332,7 +332,7 @@ object HardcodedVC {
                     else -> gson.toJson(rawMdoc)
                 }
                 val mdocJsonObject = gson.fromJson(jsonString, JsonObject::class.java)
-                VCWithFormat(FormatType.MSO_MDOC.value, mdocJsonObject)
+                VCWithFormat(FormatType.MSO_MDOC.value, mdocJsonObject, MDOC_BASE64_URL)
             }
         }
     }
@@ -341,5 +341,6 @@ object HardcodedVC {
 
 data class VCWithFormat(
     val format: String,
-    val vc: JsonObject
+    val vc: JsonObject,
+    val rawCBORData : String? = null
 )

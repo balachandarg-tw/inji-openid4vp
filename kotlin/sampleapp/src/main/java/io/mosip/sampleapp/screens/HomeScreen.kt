@@ -54,13 +54,6 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
     val downloadedVcs = viewModel.downloadedVcs
 
     Box(Modifier.fillMaxSize()) {
-        Column(Modifier.fillMaxSize()) {
-            Button(
-                onClick = { shareMdocCredential() },
-                modifier = Modifier.padding(16.dp)
-            ) {
-                Text("Share Mdoc Credential")
-            }
         if (downloadedVcs.isEmpty()) {
             Box(Modifier.fillMaxSize(), Alignment.Center) {
                 Text("No VCs downloaded. Tap + icon to download VCs")
@@ -136,7 +129,6 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                     }
                 }
             }
-            }
         }
 
         Box(
@@ -152,7 +144,7 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
                             onClick = {
                                 val copiedVc = credential.vc.deepCopy().asJsonObject
                                 val format = credential.format
-                                viewModel.addVC(VCWithFormat(format, copiedVc))
+                                viewModel.addVC(VCWithFormat(format, copiedVc, credential.rawCBORData))
                                 showFabMenu = false
                             },
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -168,12 +160,6 @@ fun HomeScreen(navController: NavHostController, viewModel: SharedViewModel) {
 }
 
 
-fun shareMdocCredential() {
-    Log.d("test",":::::: shareMdocCredential")
-    val mdocJson = HardcodedVC.get(4)
-    Log.d("test", ":::::: mdocJson $mdocJson")
-
-}
 
 
 

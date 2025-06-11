@@ -25,6 +25,7 @@ class OVPHelper {
         for (vcWithFormat in vcList) {
             val vc = vcWithFormat.vc
             val vcFormat = vcWithFormat.format
+            val rawCBORData = vcWithFormat.rawCBORData
 
             for (i in 0 until inputDescriptors.size()) {
                 val inputDescriptor = inputDescriptors[i].asJsonObject
@@ -50,7 +51,7 @@ class OVPHelper {
                     val list = matchingVCs.getOrPut(descriptorId) { mutableListOf() }
 
                     if (list.none { it.vc == vc && it.format == vcFormat }) {
-                        list.add(VCWithFormat(vcFormat, vc.deepCopy()))
+                        list.add(VCWithFormat(vcFormat, vc.deepCopy(), vcWithFormat.rawCBORData))
                     }
                 }
             }
@@ -58,7 +59,7 @@ class OVPHelper {
 
         if (!hasFormatOrConstraints && inputDescriptors.size() > 0) {
             val fallbackId = inputDescriptors[0].asJsonObject.get("id").asString
-            matchingVCs[fallbackId] = vcList.map { VCWithFormat(it.format, it.vc.deepCopy()) }.toMutableList()
+            matchingVCs[fallbackId] = vcList.map { VCWithFormat(it.format, it.vc.deepCopy(), it.rawCBORData) }.toMutableList()
         }
 
         return MatchResult(
@@ -82,14 +83,16 @@ class OVPHelper {
                 continue
             }
 
-            val credential = vcWithFormat.vc
-
-            val credentialJson = gson.toJson(credential)
+            val credentialValue = if (formatType == FormatType.MSO_MDOC) {
+                vcWithFormat.rawCBORData // Use rawCbor for mdoc
+            } else {
+                gson.toJson(vcWithFormat.vc) // Use JSON for others
+            }
 
             val formatMap = result.getOrPut(inputDescriptorId) { mutableMapOf() }
             val credentialList = formatMap.getOrPut(formatType) { mutableListOf() }
 
-            credentialList.add(credentialJson)
+            credentialValue?.let { credentialList.add(it) }
         }
 
         return result.mapValues { (_, innerMap) ->

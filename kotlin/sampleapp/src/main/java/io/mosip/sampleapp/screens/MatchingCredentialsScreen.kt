@@ -267,25 +267,26 @@ fun handleDecline(
 
 suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>) = withContext(Dispatchers.IO) {
     val parsedSelectedItems = OVPHelper().buildSelectedVCsMapPlain(selectedItems)
-    val inputMap = mapOf("org.iso.18013.5.1.mDL" to mapOf(FormatType.MSO_MDOC to listOf(HardcodedVC.MDOC_BASE64_URL)))
-    val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(inputMap)
 
-//    // --- LDP_VC signing (as before) ---
-//    val ldpSigningResult = run {
-//        val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: return@run null
-//        val gson = Gson()
-//        val jsonElement = gson.toJsonTree(vpPayload)
-//        val mapPayload: Map<String, Any> = gson.fromJson(jsonElement, object : TypeToken<Map<String, Any>>() {}.type)
-//        val keyType = KeyType.RSA
-//        val keyPair = VPTokenSigner.generateKeyPair(keyType)
-//        val result: SignedVPJWT = VPTokenSigner.signVPToken(keyPair, keyType, mapPayload)
-//        LdpVPTokenSigningResult(
-//            jws = result.jwt,
-//            signatureAlgorithm = result.algorithm,
-//            publicKey = result.publicJWK,
-//            domain = "OpenID4VP"
-//        )
-//    }
+    val inputMap = mapOf("org.iso.18013.5.1.mDL" to mapOf(FormatType.MSO_MDOC to listOf(HardcodedVC.MDOC_BASE64_URL)))
+    val unsignedVpTokenMap = OpenID4VPManager.constructUnsignedVpToken(parsedSelectedItems)
+
+    // --- LDP_VC signing (as before) ---
+    val ldpSigningResult = run {
+        val vpPayload = unsignedVpTokenMap[FormatType.LDP_VC] ?: return@run null
+        val gson = Gson()
+        val jsonElement = gson.toJsonTree(vpPayload)
+        val mapPayload: Map<String, Any> = gson.fromJson(jsonElement, object : TypeToken<Map<String, Any>>() {}.type)
+        val keyType = KeyType.RSA
+        val keyPair = VPTokenSigner.generateKeyPair(keyType)
+        val result: SignedVPJWT = VPTokenSigner.signVPToken(keyPair, keyType, mapPayload)
+        LdpVPTokenSigningResult(
+            jws = result.jwt,
+            signatureAlgorithm = result.algorithm,
+            publicKey = result.publicJWK,
+            domain = "OpenID4VP"
+        )
+    }
 
     // --- MSO_MDOC signing ---
     val mdocSigningResult = run {
@@ -308,7 +309,7 @@ suspend fun sendVP(selectedItems: SnapshotStateList<Pair<String, VCWithFormat>>)
 
     // --- Compose result map ---
     val vpTokenSigningResultMap = buildMap<FormatType, VPTokenSigningResult> {
-      //  ldpSigningResult?.let { put(FormatType.LDP_VC, it) }
+        ldpSigningResult?.let { put(FormatType.LDP_VC, it) }
         mdocSigningResult?.let { put(FormatType.MSO_MDOC, it) }
     }
 
